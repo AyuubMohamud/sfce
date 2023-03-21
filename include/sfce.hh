@@ -5,7 +5,7 @@
 #include <cstdint>
 
 #if defined(__GNUC__) && !defined(__llvm__)
-#define COMPILER_VERSION __GNUC__ SPACE __GNUC_MINOR__ SPACE __GNUC_PATCHLEVEL__
+#define COMPILER_VERSION __GNUC__ SPACE __GNUC_MINOR__
 #define COMPILER "GCC"
 #elif defined(__llvm__)
 #define COMPILER_VERSION __clang_version__
