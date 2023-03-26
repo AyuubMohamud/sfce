@@ -38,13 +38,14 @@ enum DeclaratorPieceType
 {
     PTR,
     FUNC,
-    ARR
+    ARR,
+    D_IDENTIFIER
 };
 struct CType;
 struct Symbol {
     u64 value = 0;
     CType* type = nullptr;
-    bool anon = false;
+    bool abstractdecl = false;
     std::string identifier;
 };
 
@@ -90,12 +91,21 @@ private:
     u64 arraySz = 0;
     DeclaratorPieceType dpt = ARR;
 };
-// int x (int y, int z) {}  int,    decl: (int y, int z)
+
+class Identifier : public DeclaratorPieces
+{
+public:
+    DeclaratorPieceType getDPT() final {return dpt;};
+    std::string identifier_name;
+private:
+    DeclaratorPieceType dpt = D_IDENTIFIER;
+};
+
 struct CType
 {
     std::vector<Token> typeSpecifier;
-    std::vector<std::unique_ptr<DeclaratorPieces>> declaratorPartList;
-    char bitfield; // Used for unions, currently supported **TODO**
+    std::vector<DeclaratorPieces> declaratorPartList;
+    char bitfield; // Used for unions, currently unsupported **TODO**
 
     bool isCompatible(CType type, ASTop op);
     bool isPtr();
@@ -145,9 +155,9 @@ struct LabelSymbolTable
 };
 struct ScopeAST {
     ScopeAST* parent = nullptr;
-    RegularSymbolTable RegularSymbolTable;
-    StructSymbolTable StructSymbolTable;
-    LabelSymbolTable LabelSymbolTable;
+    RegularSymbolTable rst;
+    StructSymbolTable sst;
+    LabelSymbolTable lst;
 
     i32 findRegularSymbol(const std::string& identifier);
     i32 findStructSymbol(const std::string& identifier);
@@ -157,7 +167,7 @@ struct ScopeAST {
 class FunctionAST
 {
 public:
-    FunctionAST(CType* declaratorType);
+    FunctionAST(CType* declaratorType); // append parameter list from FunctionParameter type + extract return type
     ~FunctionAST();
     std::vector<ASTNode*> expressions;
     bool funcDefinedInFile = false;
@@ -165,11 +175,18 @@ public:
     std::string identifier;
     ScopeAST scope {.parent = nullptr };
     CType* returnType;
-
-
+    FunctionPrototype prototype;
 };
 
 class CParse
 {
-
+public:
+    CParse(std::vector<Token>* input);
+    ~CParse();
+private:
+    std::vector<Token>* tokens;
+    u32 cursor = 0;
+    bool parse();
+    bool declarator();
+    bool declarationSpecifiers();
 };

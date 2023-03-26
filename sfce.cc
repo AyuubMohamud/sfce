@@ -2,6 +2,7 @@
 #include <cstring>
 #include <errorHandler.hh>
 #include <lexer.hh>
+#include <cparse.hh>
 #define ANSI_COLOR_BLUE    "\x1b[34m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
@@ -33,14 +34,15 @@ int main(int argc, const char** argv)
         help();
         return 0;
     }
-    Lexer* lexer = new Lexer(argv[1]);
+    auto* lexer = new Lexer(argv[1]);
 
     LexerResult* result = lexer->lexer();
 
-    for (auto& i : result->TokenisedInput)
+    for (auto& i : *result->TokenisedInput)
     {
         printf("%s, %lu\n", i.lexeme.c_str(), i.lineNumber);
     }
+    CParse parser(result->TokenisedInput);
     delete lexer;
 
 

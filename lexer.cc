@@ -1,6 +1,7 @@
 #include <cctype>
 #include <cstdio>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <lexer.hh>
 #include <sfce.hh>
@@ -11,6 +12,7 @@ Lexer::Lexer(const char* filename)
     m_filename = filename;
     file.open(m_filename);
     tokenisedInput = new LexerResult;
+    tokenisedInput->TokenisedInput = new std::vector<Token>;
 }
 
 Lexer::~Lexer()
@@ -21,9 +23,13 @@ Lexer::~Lexer()
 
 SBCCCode Lexer::secondPass()
 {
-    for (auto& i : tokenisedInput->TokenisedInput)
+    if (tokenisedInput == nullptr)
     {
-        std::unordered_map<std::string, TokenType>::const_iterator value = hashMap.find(i.lexeme);
+        return GeneralError;
+    }
+    for (auto& i : *tokenisedInput->TokenisedInput)
+    {
+        auto value = hashMap.find(i.lexeme);
         if (value != hashMap.end())
         {
             i.token = value->second;
@@ -34,9 +40,14 @@ SBCCCode Lexer::secondPass()
 
 LexerResult* Lexer::lexer()
 {
+
     if (file.fail())
     {
         print_error("FILE NOT PRESENT!");
+        if (tokenisedInput == nullptr)
+        {
+            return tokenisedInput;
+        }
         tokenisedInput->returnCode = FileNotPresent;
         return tokenisedInput;
     }
@@ -99,7 +110,7 @@ LexerResult* Lexer::lexer()
                 addToken(COMMA, ",");
             default:
             {
-                if (std::isdigit(c) || (c == '.' && std::isdigit(peek())))
+                if (std::isdigit(c))
                 {
                     file.unget();
                     numberLiterals();
@@ -447,7 +458,7 @@ void Lexer::addToken(TokenType token, std::string lexeme)
 {
     Token newToken;
     newToken.token = token;
-    newToken.lexeme = lexeme;
+    newToken.lexeme = std::move(lexeme);
     newToken.lineNumber = line;
-    tokenisedInput->TokenisedInput.push_back(newToken);
+    tokenisedInput->TokenisedInput->push_back(newToken);
 }

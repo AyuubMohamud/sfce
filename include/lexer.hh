@@ -110,7 +110,7 @@ public:
 
 struct LexerResult
 {
-    std::vector<Token> TokenisedInput;
+    std::vector<Token>* TokenisedInput;
     SBCCCode returnCode;
 };
 
@@ -128,7 +128,7 @@ private:
     char peek();
     void addToken(TokenType token, std::string lexeme);
     u64 line = 0;
-    LexerResult* tokenisedInput;
+    LexerResult* tokenisedInput = nullptr;
     SBCCCode identifiers();
     SBCCCode numberLiterals();
     SBCCCode stringLiterals();
