@@ -112,6 +112,7 @@ struct CType
     bool isArray();
     bool isNumVar();
     bool isFuncPtr();
+
 private:
     bool assignCompat(CType type);
 };
@@ -184,9 +185,11 @@ public:
     CParse(std::vector<Token>* input);
     ~CParse();
 private:
+
     std::vector<Token>* tokens;
     u32 cursor = 0;
     bool parse();
     bool declarator();
-    bool declarationSpecifiers();
+    bool declarationSpecifiers(CType* cType);
+    bool combinable(CType* cType, Token token);
 };
