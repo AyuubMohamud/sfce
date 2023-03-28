@@ -1,12 +1,12 @@
 #include "cparse.hh"
 
-bool isTypeSpecifier(Token token)
+bool isTypeSpecifier(const Token& token)
 {
     if (token.token == INTEGER || token.token == CHAR || token.token == SHORT)
     {
-        return
+        return true;
     }
-    return true;
+    return false;
 }
 CParse::CParse(std::vector<Token>* input)
 {
