@@ -63,14 +63,20 @@ bool CParse::parse()
         {
             if (tokens->at(cursor).token == OPEN_BRACE) {
                 cursor++;
-                auto* function = new FunctionAST(type);
-
-                complexStatement();
+                auto* function = new FunctionAST(type, currentScope);
+                complexStatement(function);
+                for (auto* i: function->expressions)
+                {
+                    ASTNode::print(i);
+                }
+                cursor++;
             }
-            print_error("Expected semicolon!");
-            return false;
+            else {
+                print_error("Expected semicolon!");
+                return false;
+            }
         }
-        cursor++;
+        else {cursor++;}
     }
 
     return true;
@@ -128,7 +134,7 @@ bool CParse::initDeclaratorList(CType *ctype) {
                 finished = true;
             if (!symbol) return false;
             currentScope->rst.SymbolHashMap[symbol->identifier] = currentScope->rst.id;
-            currentScope->rst.symbols.push_back(*symbol);
+            currentScope->rst.symbols.push_back(*symbol); // add declarator to symbol table
             currentScope->rst.id++;
         }
     }
@@ -154,7 +160,7 @@ Symbol* CParse::initDeclarator(CType* ctype)
     symbol->identifier = x->identifier_name;
     if (tokens->at(cursor).token == EQUAL && tokens->at(cursor++).token == INTEGER_LITERAL)
     {
-        symbol->value = std::stoi(tokens->at(cursor++).lexeme);
+        symbol->value = std::stoi(tokens->at(cursor++).lexeme); // store initial value
     }
 
     return symbol;
@@ -187,7 +193,7 @@ std::vector<Pointer*> CParse::pointer()
     while (tokens->at(cursor).token == STAR) {
         auto* nPointer = new Pointer;
         cursor++;
-        while(!isTypeQualifier(tokens->at(cursor)))
+        while(isTypeQualifier(tokens->at(cursor)))
         {
             if (tokens->at(cursor).token == VOLATILE) nPointer->setVolatile();
             if (tokens->at(cursor).token == CONST) nPointer->setConst();
@@ -221,11 +227,9 @@ direct_abstract_declarator
 bool CParse::directDeclarator(std::vector<DeclaratorPieces*>* declPieces) {
     while (tokens->at(cursor).token != END)
     {
-        printf("%d", cursor);
         if (tokens->at(cursor).token == IDENTIFIER)
         {
 
-            printf("Hello");
             auto* identifier = new Identifier;
             identifier->identifier_name = tokens->at(cursor).lexeme;
             declPieces->insert(declPieces->begin(), identifier);
@@ -385,20 +389,27 @@ assignment_expression
 	;
 
  * */
-void CParse::complexStatement() {
-    if (tokens->at(cursor).token == IDENTIFIER) // x = 2 + 3 + 5;
+void CParse::complexStatement(FunctionAST* function) {
+
+    if (tokens->at(cursor).token == IDENTIFIER) // x = 2 + 3;
     {
         auto* symbol = currentScope->findRegularSymbol(tokens->at(cursor).lexeme);
-        cursor++;
+        cursor+=2;
         auto* node = infixExpression();
-
+        cursor++;
+        auto* pnode = new ASTNode;
+        pnode->right = node;
+        pnode->left = new ASTNode;
+        pnode->left->identifier = symbol->identifier;
+        pnode->left->op = A_MV;
+        pnode->left->unary = false;
+        function->expressions.push_back(pnode);
     }
 }
 
 ASTNode* CParse::infixExpression() //For now only supports two constants to be added
 {
     auto* node = new ASTNode;
-
     node->op = A_ADD;
     node->left = new ASTNode;
     node->left->op = A_INTLIT;
@@ -408,7 +419,7 @@ ASTNode* CParse::infixExpression() //For now only supports two constants to be a
     node->right = new ASTNode;
     node->right->op = A_INTLIT;
     node->right->value = std::stoi(tokens->at(cursor).lexeme);
-    cursor+=2;
+    cursor+=1;
     node->right->unary = true;
     return node;
 }

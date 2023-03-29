@@ -83,7 +83,14 @@ private:
 class FunctionPrototype : public DeclaratorPieces
 {
 public:
-    ~FunctionPrototype();
+    ~FunctionPrototype() {
+
+        for (auto& i : types)
+        {
+            delete i;
+        }
+    };
+    void PrototypeCleanup();
     DeclaratorPieceType getDPT() final {return dpt;};
     ScopeAST* scope;
 
@@ -114,7 +121,7 @@ private:
 
 
 struct Symbol {
-    ~Symbol() {delete type;}
+    ~Symbol() = default;
     u64 value = 0;
     CType* type = nullptr;
     bool abstractdecl = false;
@@ -125,13 +132,31 @@ struct Symbol {
 class ASTNode
 {
 public:
-    ASTNode();
-    ~ASTNode();
-    ASTNode* left; // If Expression is unary it is always to the left
-    ASTNode* right;
+    ASTNode() = default;
+    ~ASTNode() {
+        deleteNode(left);
+        deleteNode(right);
+    };
+    ASTNode* left = nullptr; // If Expression is unary it is always to the left
+    ASTNode* right = nullptr;
     bool unary = false;
-    enum ASTop op;
+    enum ASTop op = A_MV;
     std::string identifier;
+    static void deleteNode(ASTNode* node)
+    {
+        if (node == nullptr)
+            return;
+        deleteNode(node->left);
+        deleteNode(node->right);
+        delete node;
+    }
+    static void print(ASTNode* node) {
+        if (node == nullptr)
+            return;
+        print(node->left);
+        print(node->right);
+        printf("OP: %d value: %lu, identifier: %s\n", node->op, node->value, node->identifier.c_str());
+    }
     u64 value = 0;
 };
 struct RegularSymbolTable
@@ -163,21 +188,58 @@ struct LabelSymbolTable
 struct ScopeAST {
     ScopeAST* parent = nullptr;
     ScopeAST* child = nullptr;
+    ~ScopeAST() {
+        ScopeAST* parent_tmp = parent;
+        ScopeAST* temp = parent;
+        while (parent_tmp->child != nullptr)
+        {
+            parent_tmp = parent_tmp->child;
+        }
+        while (parent_tmp != temp)
+        {
+            temp = parent_tmp->parent;
+            delete parent_tmp;
+            parent_tmp = temp;
+        }
+    }
     RegularSymbolTable rst;
     StructSymbolTable sst;
     LabelSymbolTable lst;
+    static void deleteScopeAST (ScopeAST* scope) {
+        ScopeAST* parent_tmp = scope->parent;
+        ScopeAST* temp = scope->parent;
+        while (parent_tmp->child != nullptr)
+        {
+            parent_tmp = parent_tmp->child;
+        }
+        while (parent_tmp != temp)
+        {
+            temp = parent_tmp->parent;
+            delete parent_tmp;
+            parent_tmp = temp;
+        }
+    };
 
     Symbol* findRegularSymbol(const std::string& identifier);
-    i64 findStructSymbol(const std::string& identifier);
-    i64 findLabelSymbol(const std::string& identifier);
+    Symbol* findStructSymbol(const std::string& identifier);
+    Symbol* findLabelSymbol(const std::string& identifier);
 };
 
 class FunctionAST
 {
 public:
     explicit FunctionAST(CType* declaratorType, ScopeAST* parent); // append parameter list from FunctionParameter type + extract return type
-    ~FunctionAST();
+    ~FunctionAST() {
+        delete scope;
+        delete returnType;
+    };
     std::vector<ASTNode*> expressions;
+    void printFunction() {
+        for (auto& i: expressions)
+        {
+            ASTNode::print(i);
+        }
+    }
     bool funcDefinedInFile = false;
     bool funcDeclInFile = false;
     std::string identifier;
@@ -208,9 +270,9 @@ private:
     Symbol* parameterDecleration();
     ScopeAST* currentScope = nullptr;
     std::vector<FunctionAST*> functions;
-    FunctionAST* currentFunction;
+    FunctionAST* currentFunction{};
     ASTNode* infixExpression();
 
 
-    void complexStatement();
+    void complexStatement(FunctionAST* function);
 };
