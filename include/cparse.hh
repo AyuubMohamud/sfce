@@ -41,13 +41,6 @@ enum DeclaratorPieceType
     ARR,
     D_IDENTIFIER
 };
-struct CType;
-struct Symbol {
-    u64 value = 0;
-    CType* type = nullptr;
-    bool abstractdecl = false;
-    std::string identifier;
-};
 
 class DeclaratorPieces
 {
@@ -71,12 +64,30 @@ private:
     bool isConst = false;
     bool isVolatile = false;
 };
+class ScopeAST;
+struct CType
+{
+    std::vector<Token> typeSpecifier;
+    std::vector<DeclaratorPieces*> declaratorPartList;
+    char bitfield; // Used for unions, currently unsupported **TODO**
 
+    bool isCompatible(CType type, ASTop op);
+    bool isPtr();
+    bool isArray();
+    bool isNumVar();
+    bool isFuncPtr();
+
+private:
+    bool assignCompat(CType type);
+};
 class FunctionPrototype : public DeclaratorPieces
 {
 public:
+    ~FunctionPrototype();
     DeclaratorPieceType getDPT() final {return dpt;};
-    std::vector<Symbol> Parameters;
+    ScopeAST* scope;
+
+    std::vector<CType*> types;
 private:
     DeclaratorPieceType dpt = FUNC;
 };
@@ -101,21 +112,15 @@ private:
     DeclaratorPieceType dpt = D_IDENTIFIER;
 };
 
-struct CType
-{
-    std::vector<Token> typeSpecifier;
-    std::vector<DeclaratorPieces> declaratorPartList;
-    char bitfield; // Used for unions, currently unsupported **TODO**
 
-    bool isCompatible(CType type, ASTop op);
-    bool isPtr();
-    bool isArray();
-    bool isNumVar();
-    bool isFuncPtr();
-
-private:
-    bool assignCompat(CType type);
+struct Symbol {
+    ~Symbol() {delete type;}
+    u64 value = 0;
+    CType* type = nullptr;
+    bool abstractdecl = false;
+    std::string identifier;
 };
+
 
 class ASTNode
 {
@@ -124,57 +129,59 @@ public:
     ~ASTNode();
     ASTNode* left; // If Expression is unary it is always to the left
     ASTNode* right;
-    bool unary;
+    bool unary = false;
     enum ASTop op;
     std::string identifier;
+    u64 value = 0;
 };
 struct RegularSymbolTable
 {
-    i32 idx;
+    u32 id = 0;
     std::vector<Symbol> symbols;
-    std::unordered_map<std::string, int> SymbolHashMap; // Map function/prototypes to ids in an array
+    std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
 };
 
 struct StructMemberSymbolTable
 {
-    i32 idx;
+    u32 idx = 0;
     std::vector<Symbol> symbols;
-    std::unordered_map<std::string, int> SymbolHashMap; // Map function/prototypes to ids in an array
+    std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
 };
 struct StructSymbolTable
 {
-    i32 idx;
+    u32 idx = 0;
     std::vector<Symbol> symbols;
-    std::unordered_map<std::string, int> SymbolHashMap; // Map function/prototypes to ids in an array
+    std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
     StructMemberSymbolTable memberTable;
 };
 struct LabelSymbolTable
 {
-    i32 idx;
+    u32 idx = 0;
     std::vector<Symbol> symbols;
-    std::unordered_map<std::string, int> SymbolHashMap; // Map function/prototypes to ids in an array
+    std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
 };
 struct ScopeAST {
     ScopeAST* parent = nullptr;
+    ScopeAST* child = nullptr;
     RegularSymbolTable rst;
     StructSymbolTable sst;
     LabelSymbolTable lst;
 
-    i32 findRegularSymbol(const std::string& identifier);
-    i32 findStructSymbol(const std::string& identifier);
-    i32 findLabelSymbol(const std::string& identifier);
+    Symbol* findRegularSymbol(const std::string& identifier);
+    i64 findStructSymbol(const std::string& identifier);
+    i64 findLabelSymbol(const std::string& identifier);
 };
 
 class FunctionAST
 {
 public:
-    FunctionAST(CType* declaratorType); // append parameter list from FunctionParameter type + extract return type
+    explicit FunctionAST(CType* declaratorType, ScopeAST* parent); // append parameter list from FunctionParameter type + extract return type
     ~FunctionAST();
     std::vector<ASTNode*> expressions;
     bool funcDefinedInFile = false;
     bool funcDeclInFile = false;
     std::string identifier;
-    ScopeAST scope {.parent = nullptr };
+    ScopeAST* scope = nullptr;
     CType* returnType;
     FunctionPrototype prototype;
 };
@@ -182,14 +189,28 @@ public:
 class CParse
 {
 public:
-    CParse(std::vector<Token>* input);
+    explicit CParse(std::vector<Token>* input);
+    bool parse();
     ~CParse();
 private:
-
     std::vector<Token>* tokens;
     u32 cursor = 0;
-    bool parse();
-    bool declarator();
+
+    std::vector<DeclaratorPieces*>* declarator();
     bool declarationSpecifiers(CType* cType);
-    bool combinable(CType* cType, Token token);
+    static bool combinable(CType* cType, const Token& token);
+    bool initDeclaratorList(CType* ctype);
+    Symbol* initDeclarator(CType* ctype);
+    std::vector<Pointer*> pointer();
+
+    bool directDeclarator(std::vector<DeclaratorPieces*>* declPieces);
+    FunctionPrototype* parameterList();
+    Symbol* parameterDecleration();
+    ScopeAST* currentScope = nullptr;
+    std::vector<FunctionAST*> functions;
+    FunctionAST* currentFunction;
+    ASTNode* infixExpression();
+
+
+    void complexStatement();
 };

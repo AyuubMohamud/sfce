@@ -43,6 +43,8 @@ int main(int argc, const char** argv)
         printf("%s, %lu\n", i.lexeme.c_str(), i.lineNumber);
     }
     CParse parser(result->TokenisedInput);
+    if (!parser.parse()) print_error("Error whilst parsing!");
+
     delete lexer;
 
 
