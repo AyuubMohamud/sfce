@@ -172,11 +172,17 @@ bool CParse::parse()
     while (tokens->at(cursor).token != END)
     {
         auto* type = new CType;
-        if (declarationSpecifiers(type)) return false;
+        if (declarationSpecifiers(type))
+        {
+            delete type;
+            delete currentScope;
+            return false;
+        }
 
         if (!initDeclaratorList(type)) {
             print_error("Failure whilst parsing declarator!");
             delete currentScope;
+            delete type;
             return false;
         }
         if (tokens->at(cursor).token != SEMICOLON)
@@ -189,10 +195,12 @@ bool CParse::parse()
                 auto* function = new FunctionAST(type, identifier);
                 function->root = compoundStatement();
                 functions.push_back(function);
+
             }
             else {
                 print_error(tokens->at(cursor).lineNumber, "Expected semicolon after declaration");
                 delete currentScope;
+                delete type;
                 return false;
             }
         }
@@ -551,6 +559,7 @@ ASTNode* CParse::compoundStatement() {
         return nullptr;
     }
     if (tokens->at(cursor).token == CLOSE_BRACE) {
+        currentScope = currentScope->parent;
         cursor++;
         return node;
     }
@@ -905,7 +914,7 @@ ASTNode* CParse::postfixExpression() {
         cursor++;
         return rootNode;
     }
-    if (tokens->at(cursor).token == INCREMENT || tokens->at(cursor).token == DECREMENT)
+    else if (tokens->at(cursor).token == INCREMENT || tokens->at(cursor).token == DECREMENT)
     {
         auto* rootNode = new ASTNode;
         ASTNode::fillNode(rootNode, node, nullptr, true, tokens->at(cursor).token == INCREMENT ? A_INC : A_DEC, "");
@@ -1325,5 +1334,11 @@ FunctionPrototype::~FunctionPrototype() {
     {
         delete i;
     }
+    delete scope;
+}
+
+ASTNode::~ASTNode() {
+    deleteNode(left);
+    deleteNode(right);
     delete scope;
 }

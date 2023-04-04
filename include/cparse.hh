@@ -146,10 +146,7 @@ class ASTNode
 {
 public:
     ASTNode() = default;
-    ~ASTNode() {
-        deleteNode(left);
-        deleteNode(right);
-    };
+    ~ASTNode();
     ASTNode* left = nullptr; // If Expression is unary it is always to the left
     ASTNode* right = nullptr;
     bool unary = false;
@@ -157,6 +154,13 @@ public:
     std::string identifier;
     CType type; // only usable if op = A_TYPE_CVT
     ScopeAST* scope{};
+    static void print(ASTNode* node) {
+        if (node == nullptr)
+            return;
+        print(node->left);
+        print(node->right);
+        printf("OP: %d value: %lu, identifier: %s\n", node->op, node->value, node->identifier.c_str());
+    }
     static void deleteNode(ASTNode* node)
     {
         if (node == nullptr)
@@ -164,13 +168,6 @@ public:
         deleteNode(node->left);
         deleteNode(node->right);
         delete node;
-    }
-    static void print(ASTNode* node) {
-        if (node == nullptr)
-            return;
-        print(node->left);
-        print(node->right);
-        printf("OP: %d value: %lu, identifier: %s\n", node->op, node->value, node->identifier.c_str());
     }
     static void fillNode(ASTNode* node, ASTNode* left, ASTNode* right, bool unary, ASTop op, const std::string& identifier) {
         node->left = left;
