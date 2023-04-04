@@ -9,3 +9,6 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 void print_error(const char* string);
 
+void print_error(unsigned long long line, const char* string);
+
+void print_note(unsigned long long line, const char* string);

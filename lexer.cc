@@ -18,6 +18,8 @@ Lexer::Lexer(const char* filename)
 Lexer::~Lexer()
 {
     file.close();
+    if (tokenisedInput)
+        delete tokenisedInput->TokenisedInput;
     delete tokenisedInput;
 }
 
@@ -357,7 +359,7 @@ SBCCCode Lexer::identifiers()
 
 SBCCCode Lexer::numberLiterals()
 {
-    std::string literal;
+    std::string literal{};
     bool floatingPointLiteral = false;
 
     while (std::isdigit(peek()) || peek() == '.')

@@ -1,12 +1,12 @@
 #include <sfce.hh>
 #include <errorHandler.hh>
 
-void print_error(int line, const char* string)
+void print_error(unsigned long long line, const char* string)
 {
     printf(ANSI_COLOR_RED);
     printf("ERROR: ");
     printf(ANSI_COLOR_RESET);
-    printf("%s at line %d\n", string, line);
+    printf("%s at line %llu\n", string, line);
 }
 void print_error(const char* string)
 {
@@ -16,6 +16,13 @@ void print_error(const char* string)
     printf("%s\n", string);
 }
 
+void print_note(unsigned long long line, const char* string)
+{
+    printf(ANSI_COLOR_MAGENTA);
+    printf("note: ");
+    printf(ANSI_COLOR_RESET);
+    printf("%s at line %llu\n", string, line);
+}
 
 void report(int line, const char* message)
 {

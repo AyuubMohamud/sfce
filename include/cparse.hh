@@ -6,33 +6,47 @@ enum ASTop {
     A_ADD,
     A_SUB,
     A_DIV,
+    A_NOP,
     A_MULT,
     A_SLL,
     A_ASR,
     A_MODULO,
-    A_BLTEQ,
-    A_BLT,
-    A_BMT,
-    A_BMTEQ,
-    A_BEQ,
-    A_BNEQ,
+    A_NEQ,
+    A_EQ,
     A_AND,
     A_OR,
     A_XOR,
     A_CALL,
     A_TYPE_CVT,
-    A_MV,
     A_INTLIT,
     A_IDENT,
     A_RET,
     A_IFBODY,
     A_IFDECL,
-    A_WHILEDECL,
     A_WHILEBODY,
     A_LITERAL,
     A_DEREF,
     A_AGEN,
-    A_SCALE
+    A_GLUE,
+    A_LOR,
+    A_LAND,
+    A_LT,
+    A_MT,
+    A_MTEQ,
+    A_LTEQ,
+    A_TYP,
+    A_INC,
+    A_DEC,
+    A_ABS,
+    A_NEG,
+    A_NOT,
+    A_LNOT,
+    A_FORCOND,
+    A_FORBODY,
+    A_FORDECL,
+    A_CS,
+    A_MV,
+    A_END
 };
 enum DeclaratorPieceType
 {
@@ -67,9 +81,15 @@ private:
 class ScopeAST;
 struct CType
 {
+    ~CType() {
+        for (auto* i : declaratorPartList)
+        {
+            delete i;
+        }
+    };
     std::vector<Token> typeSpecifier;
     std::vector<DeclaratorPieces*> declaratorPartList;
-    char bitfield; // Used for unions, currently unsupported **TODO**
+    char bitfield = 0; // Used for unions, currently unsupported **TODO**
 
     bool isCompatible(CType type, ASTop op);
     bool isPtr();
@@ -83,18 +103,11 @@ private:
 class FunctionPrototype : public DeclaratorPieces
 {
 public:
-    ~FunctionPrototype() {
-
-        for (auto& i : types)
-        {
-            delete i;
-        }
-    };
-    void PrototypeCleanup();
+    ~FunctionPrototype();
     DeclaratorPieceType getDPT() final {return dpt;};
-    ScopeAST* scope;
+    ScopeAST* scope = nullptr;
 
-    std::vector<CType*> types;
+    std::vector<CType*> types{};
 private:
     DeclaratorPieceType dpt = FUNC;
 };
@@ -140,8 +153,10 @@ public:
     ASTNode* left = nullptr; // If Expression is unary it is always to the left
     ASTNode* right = nullptr;
     bool unary = false;
-    enum ASTop op = A_MV;
+    enum ASTop op = A_NOP;
     std::string identifier;
+    CType type; // only usable if op = A_TYPE_CVT
+    ScopeAST* scope{};
     static void deleteNode(ASTNode* node)
     {
         if (node == nullptr)
@@ -156,6 +171,13 @@ public:
         print(node->left);
         print(node->right);
         printf("OP: %d value: %lu, identifier: %s\n", node->op, node->value, node->identifier.c_str());
+    }
+    static void fillNode(ASTNode* node, ASTNode* left, ASTNode* right, bool unary, ASTop op, const std::string& identifier) {
+        node->left = left;
+        node->right = right;
+        node->op = op;
+        node->unary = unary;
+        node->identifier = identifier;
     }
     u64 value = 0;
 };
@@ -189,17 +211,13 @@ struct ScopeAST {
     ScopeAST* parent = nullptr;
     ScopeAST* child = nullptr;
     ~ScopeAST() {
-        ScopeAST* parent_tmp = parent;
-        ScopeAST* temp = parent;
-        while (parent_tmp->child != nullptr)
+        ScopeAST* temp = child;
+        ScopeAST* temp2 = nullptr;
+        while (temp != nullptr)
         {
-            parent_tmp = parent_tmp->child;
-        }
-        while (parent_tmp != temp)
-        {
-            temp = parent_tmp->parent;
-            delete parent_tmp;
-            parent_tmp = temp;
+            temp2 = temp->child;
+            delete temp;
+            temp = temp2;
         }
     }
     RegularSymbolTable rst;
@@ -220,7 +238,8 @@ struct ScopeAST {
         }
     };
 
-    Symbol* findRegularSymbol(const std::string& identifier);
+    static Symbol* findRegularSymbol(ScopeAST* scope, const std::string& identifier);
+    Symbol* findSymbolInLocalScope(const std::string& identifier);
     Symbol* findStructSymbol(const std::string& identifier);
     Symbol* findLabelSymbol(const std::string& identifier);
 };
@@ -228,24 +247,38 @@ struct ScopeAST {
 class FunctionAST
 {
 public:
-    explicit FunctionAST(CType* declaratorType, ScopeAST* parent); // append parameter list from FunctionParameter type + extract return type
-    ~FunctionAST() {
-        delete scope;
-        delete returnType;
-    };
-    std::vector<ASTNode*> expressions;
-    void printFunction() {
-        for (auto& i: expressions)
-        {
-            ASTNode::print(i);
+    explicit FunctionAST(CType* declaratorType, const std::string& identifier)
+    {
+        returnType = new CType;
+        returnType->typeSpecifier = std::move(declaratorType->typeSpecifier);
+        int cursor = 0;
+        funcIdentifier = dynamic_cast<Identifier*>(declaratorType->declaratorPartList.at(cursor))->identifier_name;
+        cursor++;
+        while (declaratorType->declaratorPartList.at(cursor)->getDPT() == PTR) {
+            returnType->declaratorPartList.push_back(declaratorType->declaratorPartList.at(cursor));
+            cursor++;
         }
+        if (declaratorType->declaratorPartList.at(cursor)->getDPT() == FUNC)
+        {
+            printf("Hiya\n");
+            prototype = dynamic_cast<FunctionPrototype*>(declaratorType->declaratorPartList.at(cursor));
+        }
+
+    }; // append parameter list from FunctionParameter type + extract return type
+    ~FunctionAST() {
+        delete returnType;
+        delete prototype;
+        delete root;
+    };
+    ASTNode* root = nullptr;
+    void printFunction() const {
+        ASTNode::print(root);
     }
     bool funcDefinedInFile = false;
     bool funcDeclInFile = false;
-    std::string identifier;
-    ScopeAST* scope = nullptr;
+    std::string funcIdentifier;
     CType* returnType;
-    FunctionPrototype prototype;
+    FunctionPrototype* prototype = nullptr;
 };
 
 class CParse
@@ -257,6 +290,9 @@ public:
 private:
     std::vector<Token>* tokens;
     u32 cursor = 0;
+    ScopeAST* currentScope = nullptr;
+    std::vector<FunctionAST*> functions;
+    FunctionAST* currentFunction{};
 
     std::vector<DeclaratorPieces*>* declarator();
     bool declarationSpecifiers(CType* cType);
@@ -264,15 +300,55 @@ private:
     bool initDeclaratorList(CType* ctype);
     Symbol* initDeclarator(CType* ctype);
     std::vector<Pointer*> pointer();
-
+    std::vector<DeclaratorPieces *> * abstractDeclarator();
     bool directDeclarator(std::vector<DeclaratorPieces*>* declPieces);
+    bool directAbstractDeclarator(std::vector<DeclaratorPieces*>* declPieces);
     FunctionPrototype* parameterList();
     Symbol* parameterDecleration();
-    ScopeAST* currentScope = nullptr;
-    std::vector<FunctionAST*> functions;
-    FunctionAST* currentFunction{};
-    ASTNode* infixExpression();
 
+    ASTNode* blockItemList();
+    ASTNode* blockItem();
+    ASTNode* compoundStatement();
+    ASTNode* expressionStatement();
+    ASTNode* selectionStatement();
+    ASTNode* iterationStatement();
+    ASTNode* jumpStatement();
+    ASTNode* unaryExpression();
+    ASTNode* postfixExpression();
+    ASTNode* primaryExpression();
+    ASTNode* conditionalExpression();
+    ASTNode* assignmentExpression();
+    ASTNode* labelStatement();
+    ASTNode* expression();
+    ASTNode* statement();
+    ASTNode* constantExpression();
+    ASTNode* castExpression();
+    ASTNode* argumentExpressionList();
+    ASTNode* binaryExpression();
+    bool typeName(CType* ctype);
 
-    void complexStatement(FunctionAST* function);
+    std::unordered_map<TokenType, ASTop> binHashMap = {
+            {STAR, A_MULT},
+            {AMPERSAND, A_AND},
+            {LOGICALAND, A_LAND},
+            {LOGICALORR, A_LOR},
+            {BACKSLASH, A_DIV},
+            {MODULO, A_MODULO},
+            {ADD, A_ADD},
+            {MINUS, A_SUB},
+            {LSL, A_SLL},
+            {LSR, A_ASR},
+            {LESSTHAN, A_LT},
+            {LESSTHANOREQUALTO, A_LTEQ},
+            {MORETHAN, A_MT},
+            {MORETHANOREQUALTO, A_MTEQ},
+            {EQUAL, A_EQ},
+            {NOTEQUAL, A_NEQ},
+            {BITWISEORR, A_OR},
+            {BITWISEXOR, A_XOR}
+    };
+
+    ASTop isBinOp(Token& token);
+    std::string identifier;
+    bool fuse = false;
 };

@@ -56,7 +56,7 @@ enum TokenType
     SEMICOLON,
     OPEN_BRACE,
     CLOSE_BRACE,
-    END_OF_FILE,
+
     BACKSLASH,
     STAR,
     NEGATE,
@@ -97,8 +97,7 @@ enum TokenType
     OPENBRACKETS,
     CLOSEBRACKETS,
     COMMA,
-    END,
-    ERRNOTOKEN
+    END
 };
 class Token
 {
