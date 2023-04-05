@@ -40,7 +40,7 @@ int main(int argc, const char** argv)
 
     for (auto& i : *result->TokenisedInput)
     {
-        printf("%s, %lu\n", i.lexeme.c_str(), i.lineNumber);
+        printf("%s, %llu\n", i.lexeme.c_str(), i.lineNumber);
     }
     CParse parser(result->TokenisedInput);
     if (!parser.parse()) print_error("Error whilst parsing!");

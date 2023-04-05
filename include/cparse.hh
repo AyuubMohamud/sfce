@@ -136,7 +136,7 @@ private:
 struct Symbol {
     ~Symbol() = default;
     u64 value = 0;
-    CType* type = nullptr;
+    CType type;
     bool abstractdecl = false;
     std::string identifier;
 };
@@ -213,27 +213,24 @@ struct ScopeAST {
 class FunctionAST
 {
 public:
-    explicit FunctionAST(CType* declaratorType, const std::string& identifier)
+    explicit FunctionAST(CType& declaratorType, const std::string& identifier)
     {
-        returnType = new CType;
-        returnType->typeSpecifier = std::move(declaratorType->typeSpecifier);
+        returnType.typeSpecifier = std::move(declaratorType.typeSpecifier);
         int cursor = 0;
-        funcIdentifier = dynamic_cast<Identifier*>(declaratorType->declaratorPartList.at(cursor))->identifier_name;
+        funcIdentifier = dynamic_cast<Identifier*>(declaratorType.declaratorPartList.at(cursor))->identifier_name;
         cursor++;
-        while (declaratorType->declaratorPartList.at(cursor)->getDPT() == PTR) {
-            returnType->declaratorPartList.push_back(declaratorType->declaratorPartList.at(cursor));
+        while (declaratorType.declaratorPartList.at(cursor)->getDPT() == PTR) {
+            returnType.declaratorPartList.push_back(declaratorType.declaratorPartList.at(cursor));
             cursor++;
         }
-        if (declaratorType->declaratorPartList.at(cursor)->getDPT() == FUNC)
+        if (declaratorType.declaratorPartList.at(cursor)->getDPT() == FUNC)
         {
             printf("Hiya\n");
-            prototype = *dynamic_cast<FunctionPrototype*>(declaratorType->declaratorPartList.at(cursor));
+            prototype = *dynamic_cast<FunctionPrototype*>(declaratorType.declaratorPartList.at(cursor));
         }
 
     }; // append parameter list from FunctionParameter type + extract return type
-    ~FunctionAST() {
-        delete returnType;
-    };
+    ~FunctionAST() = default;
     ASTNode* root = nullptr;
     void printFunction() const {
         ASTNode::print(root);
@@ -241,7 +238,7 @@ public:
     bool funcDefinedInFile = false;
     bool funcDeclInFile = false;
     std::string funcIdentifier;
-    CType* returnType;
+    CType returnType;
     FunctionPrototype prototype{};
 };
 

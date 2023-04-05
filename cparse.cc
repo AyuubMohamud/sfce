@@ -192,7 +192,7 @@ bool CParse::parse()
                 {
                     printf("hiya\n");
                 }
-                auto* function = new FunctionAST(type, identifier);
+                auto* function = new FunctionAST(*type, identifier);
                 function->root = compoundStatement();
                 functions.push_back(function);
 
@@ -266,7 +266,6 @@ bool CParse::initDeclaratorList(CType *ctype) {
     currentScope->rst.id++;
 
     identifier = symbol->identifier;
-
     delete symbol;
     return true;
 }
@@ -284,7 +283,7 @@ Symbol* CParse::initDeclarator(CType* ctype)
     std::vector<DeclaratorPieces*>* y = declarator();
     ctype->declaratorPartList = *y;
     delete y;
-    symbol->type = ctype;
+    symbol->type = *ctype;
     if (ctype->declaratorPartList.empty()) return nullptr;
     if (ctype->declaratorPartList.at(0)->getDPT() != D_IDENTIFIER )
     {
@@ -428,7 +427,7 @@ FunctionPrototype* CParse::parameterList()
         if (x == nullptr) return nullptr;
         if (x->abstractdecl)
         {
-            funcProto->types.push_back(*(x->type));
+            funcProto->types.push_back((x->type));
         }
         else {
             if (ScopeAST::findRegularSymbol(currentScope, x->identifier) != nullptr)
@@ -441,14 +440,13 @@ FunctionPrototype* CParse::parameterList()
                 currentScope->rst.SymbolHashMap[x->identifier] = currentScope->rst.id;
                 currentScope->rst.symbols.push_back(*x);
                 currentScope->rst.id++;
-                funcProto->types.push_back(*x->type);
+                funcProto->types.push_back(x->type);
             }
         }
         if (tokens->at(cursor).token != COMMA)
         {
             done = true;
         }
-        delete x->type;
         delete x;
     }
     currentScope = funcProto->scope->parent;
@@ -467,6 +465,7 @@ Symbol* CParse::parameterDecleration() {
     bool error = declarationSpecifiers(ctype);
     if (error)
     {
+        delete ctype;
         return nullptr;
     }
     std::vector<DeclaratorPieces*>* dp = declarator();
@@ -477,19 +476,22 @@ Symbol* CParse::parameterDecleration() {
     if (dp == nullptr)
     {
         auto* symbol = new Symbol;
-        symbol->type = ctype;
+        symbol->type = *ctype;
         symbol->abstractdecl = true;
+        delete ctype;
         return symbol;
     } else {
         auto* symbol = new Symbol;
-        symbol->type = ctype;
+        symbol->type = *ctype;
         symbol->abstractdecl = true;
         delete dp;
+        delete ctype;
         return symbol;
     }
     ctype->declaratorPartList.insert(ctype->declaratorPartList.begin(), dp->begin(), dp->end());
     if (dp->empty())
     {
+        delete ctype;
         delete dp;
         return nullptr;
     }
@@ -498,10 +500,11 @@ Symbol* CParse::parameterDecleration() {
         auto* ident = dynamic_cast<Identifier*>(dp->at(0));
         auto* symbol = new Symbol;
         ctype->declaratorPartList.erase(ctype->declaratorPartList.begin());
-        symbol->type = ctype;
+        symbol->type = *ctype;
         symbol->identifier = ident->identifier_name;
         symbol->abstractdecl = false;
         delete dp;
+        delete ctype;
         return symbol;
     }
 }
@@ -862,17 +865,15 @@ ASTNode* CParse::unaryExpression() {
             cursor++;
             if (tokens->at(cursor).token == OPEN_PARENTHESES) {
                 auto *node = new ASTNode;
-                auto *type = new CType;
-                bool suceess = typeName(type);
+                auto* ctype = new CType;
+                bool suceess = typeName(ctype);
                 if (!suceess) {
                     delete node;
-                    delete type;
                     return nullptr;
                 }
-                int sz = determineSz(type);
+                int sz = determineSz(ctype);
                 ASTNode::fillNode(node, nullptr, nullptr, false, A_LITERAL, "");
                 node->value = sz;
-                delete type;
                 cursor++;
                 return node;
             }
@@ -1111,7 +1112,7 @@ ASTNode* CParse::castExpression() {
         if (tokens->at(cursor).token != OPEN_PARENTHESES) { delete node; return nullptr; }
         auto* type = new CType;
         bool success = typeName(type);
-        if (!success) {delete node; delete type; return nullptr;}
+        if (!success) {delete node; return nullptr;}
         cursor++;
         auto* node1 = new ASTNode;
         ASTNode::fillNode(node1, nullptr, nullptr, false, A_TYP, "");
@@ -1119,6 +1120,7 @@ ASTNode* CParse::castExpression() {
         auto* node2 = castExpression();
         ASTNode::fillNode(rootNode, node1, node2, false, A_TYPE_CVT, "");
         node = rootNode;
+        delete type;
     }
     return node;
 }
@@ -1186,7 +1188,7 @@ bool CParse::directAbstractDeclarator(std::vector<DeclaratorPieces *> *declPiece
     return false;
 }
 
-bool CParse::typeName(CType *ctype) {
+bool CParse::typeName(CType* ctype) {
     bool error = declarationSpecifiers(ctype);
     if (error) {return false;}
     std::vector<DeclaratorPieces*>* x = abstractDeclarator();

@@ -4,7 +4,7 @@ add_executable(sfce lexer.cc sfce.cc sfce.h.in include/errorHandler.hh cparse.cc
 configure_file(sfce.h.in sfce.h)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_FLAGS_DEBUG "-std=gnu++17 -O0 -g -DDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-std=gnu++17 -O0 -g -DDEBUG -fsanitize=leak")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "-std=gnu++17 -Os")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-std=gnu++17 -O3 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-std=gnu++17 -O3")
