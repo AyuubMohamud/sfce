@@ -207,6 +207,7 @@ bool CParse::parse()
         else {
             cursor++;
         }
+        delete type;
 
     }
     return true;
@@ -247,6 +248,7 @@ bool CParse::declarationSpecifiers(CType* cType)
 CParse::~CParse() {
     for (auto* i: functions)
     {
+        ASTNode::deleteNode(i->root);
         delete i;
     }
     delete currentScope;
@@ -426,7 +428,7 @@ FunctionPrototype* CParse::parameterList()
         if (x == nullptr) return nullptr;
         if (x->abstractdecl)
         {
-            funcProto->types.push_back(x->type);
+            funcProto->types.push_back(*(x->type));
         }
         else {
             if (ScopeAST::findRegularSymbol(currentScope, x->identifier) != nullptr)
@@ -439,13 +441,15 @@ FunctionPrototype* CParse::parameterList()
                 currentScope->rst.SymbolHashMap[x->identifier] = currentScope->rst.id;
                 currentScope->rst.symbols.push_back(*x);
                 currentScope->rst.id++;
-                funcProto->types.push_back(x->type);
+                funcProto->types.push_back(*x->type);
             }
         }
         if (tokens->at(cursor).token != COMMA)
         {
             done = true;
         }
+        delete x->type;
+        delete x;
     }
     currentScope = funcProto->scope->parent;
     return funcProto;
@@ -586,12 +590,12 @@ ASTNode* CParse::blockItemList() {
         return nullptr;
     }
     auto* glueNode = new ASTNode;
-    glueNode->op = A_GLUE;
 
-    if (tokens->at(cursor).token == CLOSE_BRACE) return glueNode;
+    //if (tokens->at(cursor).token == CLOSE_BRACE) {printf("Super Hiya!\n"); return glueNode; }
     auto* blockItemListNode = blockItemList();
     if (blockItemListNode == nullptr)
     {
+        printf("Oops!\n");
         delete glueNode;
         delete blockItemNode;
         return nullptr;
@@ -1330,15 +1334,18 @@ FunctionAST::FunctionAST(CType *declaratorType, ScopeAST* parent) {
 */
 
 FunctionPrototype::~FunctionPrototype() {
-    for (auto* i : types)
-    {
-        delete i;
-    }
     delete scope;
 }
 
 ASTNode::~ASTNode() {
-    deleteNode(left);
-    deleteNode(right);
-    delete scope;
+
+}
+
+void ASTNode::deleteNode(ASTNode *node) {
+    if (node == nullptr)
+        return;
+    deleteNode(node->left);
+    deleteNode(node->right);
+    delete node->scope;
+    delete node;
 }

@@ -107,7 +107,7 @@ public:
     DeclaratorPieceType getDPT() final {return dpt;};
     ScopeAST* scope = nullptr;
 
-    std::vector<CType*> types{};
+    std::vector<CType> types{};
 private:
     DeclaratorPieceType dpt = FUNC;
 };
@@ -153,7 +153,7 @@ public:
     enum ASTop op = A_NOP;
     std::string identifier;
     CType type; // only usable if op = A_TYPE_CVT
-    ScopeAST* scope{};
+    ScopeAST* scope = nullptr;
     static void print(ASTNode* node) {
         if (node == nullptr)
             return;
@@ -161,14 +161,7 @@ public:
         print(node->right);
         printf("OP: %d value: %lu, identifier: %s\n", node->op, node->value, node->identifier.c_str());
     }
-    static void deleteNode(ASTNode* node)
-    {
-        if (node == nullptr)
-            return;
-        deleteNode(node->left);
-        deleteNode(node->right);
-        delete node;
-    }
+    static void deleteNode(ASTNode* node);
     static void fillNode(ASTNode* node, ASTNode* left, ASTNode* right, bool unary, ASTop op, const std::string& identifier) {
         node->left = left;
         node->right = right;
@@ -206,34 +199,10 @@ struct LabelSymbolTable
 };
 struct ScopeAST {
     ScopeAST* parent = nullptr;
-    ScopeAST* child = nullptr;
-    ~ScopeAST() {
-        ScopeAST* temp = child;
-        ScopeAST* temp2 = nullptr;
-        while (temp != nullptr)
-        {
-            temp2 = temp->child;
-            delete temp;
-            temp = temp2;
-        }
-    }
+    ~ScopeAST() = default;
     RegularSymbolTable rst;
     StructSymbolTable sst;
     LabelSymbolTable lst;
-    static void deleteScopeAST (ScopeAST* scope) {
-        ScopeAST* parent_tmp = scope->parent;
-        ScopeAST* temp = scope->parent;
-        while (parent_tmp->child != nullptr)
-        {
-            parent_tmp = parent_tmp->child;
-        }
-        while (parent_tmp != temp)
-        {
-            temp = parent_tmp->parent;
-            delete parent_tmp;
-            parent_tmp = temp;
-        }
-    };
 
     static Symbol* findRegularSymbol(ScopeAST* scope, const std::string& identifier);
     Symbol* findSymbolInLocalScope(const std::string& identifier);
@@ -258,14 +227,12 @@ public:
         if (declaratorType->declaratorPartList.at(cursor)->getDPT() == FUNC)
         {
             printf("Hiya\n");
-            prototype = dynamic_cast<FunctionPrototype*>(declaratorType->declaratorPartList.at(cursor));
+            prototype = *dynamic_cast<FunctionPrototype*>(declaratorType->declaratorPartList.at(cursor));
         }
 
     }; // append parameter list from FunctionParameter type + extract return type
     ~FunctionAST() {
         delete returnType;
-        delete prototype;
-        delete root;
     };
     ASTNode* root = nullptr;
     void printFunction() const {
@@ -275,7 +242,7 @@ public:
     bool funcDeclInFile = false;
     std::string funcIdentifier;
     CType* returnType;
-    FunctionPrototype* prototype = nullptr;
+    FunctionPrototype prototype{};
 };
 
 class CParse
