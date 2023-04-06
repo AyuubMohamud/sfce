@@ -60,7 +60,7 @@ class DeclaratorPieces
 {
 public:
     virtual DeclaratorPieceType getDPT() {return dpt;};
-
+    virtual ~DeclaratorPieces() = default;
 protected:
     DeclaratorPieceType dpt = PTR;
 
@@ -83,9 +83,7 @@ struct CType
 {
     ~CType() {
         for (auto* i : declaratorPartList)
-        {
             delete i;
-        }
     };
     std::vector<Token> typeSpecifier;
     std::vector<DeclaratorPieces*> declaratorPartList;
@@ -100,14 +98,15 @@ struct CType
 private:
     bool assignCompat(CType type);
 };
+struct Symbol;
 class FunctionPrototype : public DeclaratorPieces
 {
 public:
-    ~FunctionPrototype();
+    ~FunctionPrototype() override;
     DeclaratorPieceType getDPT() final {return dpt;};
     ScopeAST* scope = nullptr;
 
-    std::vector<CType> types{};
+    std::vector<Symbol*> types{};
 private:
     DeclaratorPieceType dpt = FUNC;
 };
@@ -134,9 +133,11 @@ private:
 
 
 struct Symbol {
-    ~Symbol() = default;
+    ~Symbol() {
+        delete type;
+    }
     u64 value = 0;
-    CType type;
+    CType* type = nullptr;
     bool abstractdecl = false;
     std::string identifier;
 };
@@ -152,7 +153,7 @@ public:
     bool unary = false;
     enum ASTop op = A_NOP;
     std::string identifier;
-    CType type; // only usable if op = A_TYPE_CVT
+    CType* type = nullptr; // only usable if op = A_TYPE_CVT
     ScopeAST* scope = nullptr;
     static void print(ASTNode* node) {
         if (node == nullptr)
@@ -173,64 +174,41 @@ public:
 };
 struct RegularSymbolTable
 {
-    u32 id = 0;
-    std::vector<Symbol> symbols;
     std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
 };
 
-struct StructMemberSymbolTable
-{
-    u32 idx = 0;
-    std::vector<Symbol> symbols;
-    std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
-};
-struct StructSymbolTable
-{
-    u32 idx = 0;
-    std::vector<Symbol> symbols;
-    std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
-    StructMemberSymbolTable memberTable;
-};
-struct LabelSymbolTable
-{
-    u32 idx = 0;
-    std::vector<Symbol> symbols;
-    std::unordered_map<std::string, u32> SymbolHashMap; // Map function/prototypes to ids in an array
-};
 struct ScopeAST {
     ScopeAST* parent = nullptr;
     ~ScopeAST() = default;
     RegularSymbolTable rst;
-    StructSymbolTable sst;
-    LabelSymbolTable lst;
 
     static Symbol* findRegularSymbol(ScopeAST* scope, const std::string& identifier);
-    Symbol* findSymbolInLocalScope(const std::string& identifier);
-    Symbol* findStructSymbol(const std::string& identifier);
-    Symbol* findLabelSymbol(const std::string& identifier);
+    i64 findSymbolInLocalScope(const std::string& identifier);
 };
 
 class FunctionAST
 {
 public:
-    explicit FunctionAST(CType& declaratorType, const std::string& identifier)
+    explicit FunctionAST(CType* declaratorType, const std::string& identifier)
     {
-        returnType.typeSpecifier = std::move(declaratorType.typeSpecifier);
+        returnType = new CType;
+        returnType->typeSpecifier = std::move(declaratorType->typeSpecifier);
         int cursor = 0;
-        funcIdentifier = dynamic_cast<Identifier*>(declaratorType.declaratorPartList.at(cursor))->identifier_name;
+        funcIdentifier = dynamic_cast<Identifier*>(declaratorType->declaratorPartList.at(cursor))->identifier_name;
         cursor++;
-        while (declaratorType.declaratorPartList.at(cursor)->getDPT() == PTR) {
-            returnType.declaratorPartList.push_back(declaratorType.declaratorPartList.at(cursor));
-            cursor++;
-        }
-        if (declaratorType.declaratorPartList.at(cursor)->getDPT() == FUNC)
+        if (declaratorType->declaratorPartList.at(cursor)->getDPT() == FUNC)
         {
-            printf("Hiya\n");
-            prototype = *dynamic_cast<FunctionPrototype*>(declaratorType.declaratorPartList.at(cursor));
+            prototype = *dynamic_cast<FunctionPrototype*>(declaratorType->declaratorPartList.at(cursor));
         }
-
+        cursor++;
+        for (; cursor < declaratorType->declaratorPartList.size(); cursor++)
+        {
+            returnType->declaratorPartList.push_back(declaratorType->declaratorPartList.at(cursor));
+        }
     }; // append parameter list from FunctionParameter type + extract return type
-    ~FunctionAST() = default;
+    ~FunctionAST() {
+        delete returnType;
+    };
     ASTNode* root = nullptr;
     void printFunction() const {
         ASTNode::print(root);
@@ -238,8 +216,9 @@ public:
     bool funcDefinedInFile = false;
     bool funcDeclInFile = false;
     std::string funcIdentifier;
-    CType returnType;
+    CType* returnType;
     FunctionPrototype prototype{};
+
 };
 
 class CParse
@@ -254,6 +233,10 @@ private:
     ScopeAST* currentScope = nullptr;
     std::vector<FunctionAST*> functions;
     FunctionAST* currentFunction{};
+    std::vector<Symbol*> globalSymbolTable{};
+    u64 globalIndex = 0;
+
+
 
     std::vector<DeclaratorPieces*>* declarator();
     bool declarationSpecifiers(CType* cType);

@@ -188,14 +188,9 @@ bool CParse::parse()
         if (tokens->at(cursor).token != SEMICOLON)
         {
             if (tokens->at(cursor).token == OPEN_BRACE) {
-                if (type->declaratorPartList.at(0)->getDPT() == D_IDENTIFIER)
-                {
-                    printf("hiya\n");
-                }
-                auto* function = new FunctionAST(*type, identifier);
+                auto* function = new FunctionAST(type, identifier);
                 function->root = compoundStatement();
                 functions.push_back(function);
-
             }
             else {
                 print_error(tokens->at(cursor).lineNumber, "Expected semicolon after declaration");
@@ -207,9 +202,9 @@ bool CParse::parse()
         else {
             cursor++;
         }
-        delete type;
-
     }
+    auto it = currentScope->rst.SymbolHashMap.find("j");
+    printf("%s, %d\n", it->first.c_str(), it->second);
     return true;
 }
 /*declaration_specifiers
@@ -251,6 +246,11 @@ CParse::~CParse() {
         ASTNode::deleteNode(i->root);
         delete i;
     }
+
+    for (auto* i : globalSymbolTable)
+    {
+        delete i;
+    }
     delete currentScope;
 }
 /*
@@ -258,256 +258,6 @@ CParse::~CParse() {
 	: init_declarator
 	;
 */
-bool CParse::initDeclaratorList(CType *ctype) {
-    Symbol* symbol = initDeclarator(ctype);
-    if (symbol == nullptr) return false;
-    currentScope->rst.SymbolHashMap[symbol->identifier] = currentScope->rst.id;
-    currentScope->rst.symbols.push_back(*symbol); // add declarator to symbol table
-    currentScope->rst.id++;
-
-    identifier = symbol->identifier;
-    delete symbol;
-    return true;
-}
-/*
- * init_declarator
-	: declarator
-	| declarator '=' initializer
-	;
-    initlializer: numeric_lit;
- * */
-Symbol* CParse::initDeclarator(CType* ctype)
-{
-    auto* symbol = new Symbol;
-
-    std::vector<DeclaratorPieces*>* y = declarator();
-    ctype->declaratorPartList = *y;
-    delete y;
-    symbol->type = *ctype;
-    if (ctype->declaratorPartList.empty()) return nullptr;
-    if (ctype->declaratorPartList.at(0)->getDPT() != D_IDENTIFIER )
-    {
-        delete symbol;
-        return nullptr;
-    }
-    auto* x = dynamic_cast<Identifier*>(ctype->declaratorPartList[0]);
-    symbol->identifier = x->identifier_name;
-    printf("%s\n", tokens->at(cursor).lexeme.c_str());
-    if (tokens->at(cursor).token == ASSIGNMENT && tokens->at(cursor+1).token == INTEGER_LITERAL)
-    {
-        symbol->value = std::stoi(tokens->at(cursor+1).lexeme); // store initial value
-        cursor+=2;
-    }
-
-    return symbol;
-}
-/*
- * declarator
-	: pointer direct_declarator
-	| direct_declarator
-	;
- * */
-std::vector<DeclaratorPieces*>* CParse::declarator() {
-    auto* declaratorPieces = new std::vector<DeclaratorPieces*>;
-
-    std::vector<Pointer*> pointers = pointer();
-    directDeclarator(declaratorPieces);
-    if (declaratorPieces->empty()) {
-        for (auto* i : pointers)
-        {
-            delete i;
-        }
-        delete declaratorPieces;
-        return nullptr;
-    };
-    declaratorPieces->insert(declaratorPieces->end(), pointers.begin(), pointers.end());
-
-    return declaratorPieces;
-}
-/*pointer
-	: '*'
-	| '*' type_qualifier_list
-	| '*' pointer
-	| '*' type_qualifier_list pointer
-	;*/
-std::vector<Pointer*> CParse::pointer()
-{
-    std::vector<Pointer*> pointers;
-    while (tokens->at(cursor).token == STAR) {
-        auto* nPointer = new Pointer;
-        cursor++;
-        while(isTypeQualifier(tokens->at(cursor)))
-        {
-            if (tokens->at(cursor).token == VOLATILE) nPointer->setVolatile();
-            if (tokens->at(cursor).token == CONST) nPointer->setConst();
-            cursor++;
-        }
-        pointers.push_back(nPointer);
-    }
-    return pointers;
-}
-/*
- * direct_declarator
-	: IDENTIFIER
-	| '(' declarator ')'
-	| direct_declarator '(' parameter_type_list ')'
-	| direct_declarator '(' ')'
-	;
-
- */
-bool CParse::directDeclarator(std::vector<DeclaratorPieces*>* declPieces) {
-    while (tokens->at(cursor).token != END)
-    {
-        if (tokens->at(cursor).token == IDENTIFIER)
-        {
-
-            auto* identifierx = new Identifier;
-            identifierx->identifier_name = tokens->at(cursor).lexeme;
-            declPieces->insert(declPieces->begin(), identifierx);
-            cursor++;
-        }
-        else if (tokens->at(cursor).token == OPEN_PARENTHESES)
-        {
-            cursor++;
-            if (isTypeQualifier(tokens->at(cursor)) || isTypeSpecifier(tokens->at(cursor))) // is some sort of paramList
-            {
-                auto* x = parameterList();
-                declPieces->push_back(x);
-            }
-            else {
-                std::vector<DeclaratorPieces *>* subDeclPieces = declarator();
-                declPieces->insert(declPieces->begin(), subDeclPieces->begin(), subDeclPieces->end());
-                delete subDeclPieces;
-            }
-            cursor++;
-        }
-        else {
-            //print_error(tokens->at(cursor).lineNumber, "Unable to parse direct declarator.");
-            return false;
-        }
-        // Now deal with parameter stuff
-
-        while (tokens->at(cursor).token == OPEN_PARENTHESES)
-        {
-            cursor++;
-            if (tokens->at(cursor).token == CLOSE_PARENTHESES)
-            {
-                auto* funcProto = new FunctionPrototype;
-                declPieces->push_back(funcProto);
-                cursor++;
-                return true;
-            }
-            auto* funcProto = parameterList();
-            declPieces->push_back(funcProto);
-            cursor++;
-        }
-        return true;
-    }
-
-    return false;
-}
-/*
-parameter_list
-	: parameter_declaration
-	| parameter_list ',' parameter_declaration
-	;
-
-*/
-FunctionPrototype* CParse::parameterList()
-{
-    auto* funcProto = new FunctionPrototype;
-    funcProto->scope = new ScopeAST;
-    funcProto->scope->parent = currentScope;
-    currentScope = funcProto->scope;
-    bool error = false;
-    bool done = false;
-    while (!done && !error)
-    {
-        auto* x = parameterDecleration();
-        if (x == nullptr) return nullptr;
-        if (x->abstractdecl)
-        {
-            funcProto->types.push_back((x->type));
-        }
-        else {
-            if (ScopeAST::findRegularSymbol(currentScope, x->identifier) != nullptr)
-            {
-                print_error("Redecleration of already declared identifier in scope, whilst parsing parameter list.");
-                done = true;
-                error = true;
-            }
-            else {
-                currentScope->rst.SymbolHashMap[x->identifier] = currentScope->rst.id;
-                currentScope->rst.symbols.push_back(*x);
-                currentScope->rst.id++;
-                funcProto->types.push_back(x->type);
-            }
-        }
-        if (tokens->at(cursor).token != COMMA)
-        {
-            done = true;
-        }
-        delete x;
-    }
-    currentScope = funcProto->scope->parent;
-    return funcProto;
-}
-/*
- * parameter_declaration
-	: declaration_specifiers declarator
-	| declaration_specifiers abstract_declarator
-	| declaration_specifiers
-	;
- */
-Symbol* CParse::parameterDecleration() {
-    auto* ctype = new CType;
-
-    bool error = declarationSpecifiers(ctype);
-    if (error)
-    {
-        delete ctype;
-        return nullptr;
-    }
-    std::vector<DeclaratorPieces*>* dp = declarator();
-    if (dp == nullptr)
-    {
-        dp = abstractDeclarator();
-    }
-    if (dp == nullptr)
-    {
-        auto* symbol = new Symbol;
-        symbol->type = *ctype;
-        symbol->abstractdecl = true;
-        delete ctype;
-        return symbol;
-    } else {
-        auto* symbol = new Symbol;
-        symbol->type = *ctype;
-        symbol->abstractdecl = true;
-        delete dp;
-        delete ctype;
-        return symbol;
-    }
-    ctype->declaratorPartList.insert(ctype->declaratorPartList.begin(), dp->begin(), dp->end());
-    if (dp->empty())
-    {
-        delete ctype;
-        delete dp;
-        return nullptr;
-    }
-    if (dp->at(0)->getDPT() == D_IDENTIFIER) // Not abstract, add to symbol table
-    {
-        auto* ident = dynamic_cast<Identifier*>(dp->at(0));
-        auto* symbol = new Symbol;
-        ctype->declaratorPartList.erase(ctype->declaratorPartList.begin());
-        symbol->type = *ctype;
-        symbol->identifier = ident->identifier_name;
-        symbol->abstractdecl = false;
-        delete dp;
-        delete ctype;
-        return symbol;
-    }
-}
 
 
 bool CParse::combinable(CType *cType, const Token& token)
@@ -865,15 +615,17 @@ ASTNode* CParse::unaryExpression() {
             cursor++;
             if (tokens->at(cursor).token == OPEN_PARENTHESES) {
                 auto *node = new ASTNode;
-                auto* ctype = new CType;
-                bool suceess = typeName(ctype);
+                auto *type = new CType;
+                bool suceess = typeName(type);
                 if (!suceess) {
                     delete node;
+                    delete type;
                     return nullptr;
                 }
-                int sz = determineSz(ctype);
+                int sz = determineSz(type);
                 ASTNode::fillNode(node, nullptr, nullptr, false, A_LITERAL, "");
                 node->value = sz;
+                delete type;
                 cursor++;
                 return node;
             }
@@ -939,10 +691,6 @@ ASTNode* CParse::primaryExpression() {
     switch (tokens->at(cursor).token) {
         case IDENTIFIER:
         {
-            if (ScopeAST::findRegularSymbol(currentScope, tokens->at(cursor).lexeme) == nullptr) {
-                print_error(tokens->at(cursor).lineNumber, "Undefined variable");
-                return nullptr;
-            }
             auto* node = new ASTNode;
             ASTNode::fillNode(node, nullptr, nullptr, true, A_IDENT, tokens->at(cursor).lexeme);
             cursor++;
@@ -951,7 +699,7 @@ ASTNode* CParse::primaryExpression() {
         case INTEGER_LITERAL:
         {
             auto* node = new ASTNode;
-            ASTNode::fillNode(node, nullptr, nullptr, false, A_INTLIT, "");
+            ASTNode::fillNode(node, nullptr, nullptr, false, A_INTLIT, tokens->at(cursor).lexeme);
             cursor++;
             return node;
         }
@@ -997,6 +745,7 @@ ASTNode* CParse::assignmentExpression() {
     }
     if (tokens->at(cursor).token == ASSIGNMENT)
     {
+        cursor++;
         auto* assignmentExpr = assignmentExpression();
         if (assignmentExpr == nullptr)
             return nullptr;
@@ -1112,15 +861,14 @@ ASTNode* CParse::castExpression() {
         if (tokens->at(cursor).token != OPEN_PARENTHESES) { delete node; return nullptr; }
         auto* type = new CType;
         bool success = typeName(type);
-        if (!success) {delete node; return nullptr;}
+        if (!success) {delete node; delete type; return nullptr;}
         cursor++;
         auto* node1 = new ASTNode;
         ASTNode::fillNode(node1, nullptr, nullptr, false, A_TYP, "");
-        node1->type = *type;
+        node1->type = type;
         auto* node2 = castExpression();
         ASTNode::fillNode(rootNode, node1, node2, false, A_TYPE_CVT, "");
         node = rootNode;
-        delete type;
     }
     return node;
 }
@@ -1188,7 +936,7 @@ bool CParse::directAbstractDeclarator(std::vector<DeclaratorPieces *> *declPiece
     return false;
 }
 
-bool CParse::typeName(CType* ctype) {
+bool CParse::typeName(CType *ctype) {
     bool error = declarationSpecifiers(ctype);
     if (error) {return false;}
     std::vector<DeclaratorPieces*>* x = abstractDeclarator();
@@ -1289,6 +1037,227 @@ ASTNode *CParse::constantExpression() {
     return node;
 }
 
+
+
+bool CParse::initDeclaratorList(CType *ctype) {
+    Symbol* symbol = initDeclarator(ctype);
+    if (symbol == nullptr) return false;
+    currentScope->rst.SymbolHashMap.insert({symbol->identifier, globalIndex});
+    globalSymbolTable.push_back(symbol); // add declarator to symbol table
+    globalIndex++;
+
+    identifier = symbol->identifier;
+
+    return true;
+}
+
+Symbol* CParse::initDeclarator(CType *ctype) {
+    auto* symbol = new Symbol;
+
+    std::vector<DeclaratorPieces*>* y = declarator();
+    if (y == nullptr)
+    {
+        delete symbol;
+        return nullptr;
+    }
+    ctype->declaratorPartList = *y;
+    delete y;
+    symbol->type = ctype;
+    if (ctype->declaratorPartList.empty()) return nullptr;
+    if (ctype->declaratorPartList.at(0)->getDPT() != D_IDENTIFIER )
+    {
+        delete symbol;
+        return nullptr;
+    }
+    auto* x = dynamic_cast<Identifier*>(ctype->declaratorPartList[0]);
+    symbol->identifier = x->identifier_name;
+
+    if (tokens->at(cursor).token == ASSIGNMENT && tokens->at(cursor+1).token == INTEGER_LITERAL)
+    {
+        symbol->value = std::stoi(tokens->at(cursor+1).lexeme); // store initial value
+        cursor+=2;
+    }
+
+    return symbol;
+}
+std::vector<DeclaratorPieces*>* CParse::declarator() {
+    auto* declaratorPieces = new std::vector<DeclaratorPieces*>;
+
+    std::vector<Pointer*> pointers = pointer();
+    directDeclarator(declaratorPieces);
+    if (declaratorPieces->empty()) {
+        for (auto* i : pointers)
+        {
+            delete i;
+        }
+        delete declaratorPieces;
+        return nullptr;
+    }
+    declaratorPieces->insert(declaratorPieces->end(), pointers.begin(), pointers.end());
+
+    return declaratorPieces;
+}
+
+std::vector<Pointer*> CParse::pointer() {
+    std::vector<Pointer*> pointers;
+    while (tokens->at(cursor).token == STAR) {
+        auto* nPointer = new Pointer;
+        cursor++;
+        while(isTypeQualifier(tokens->at(cursor)))
+        {
+            if (tokens->at(cursor).token == VOLATILE) nPointer->setVolatile();
+            if (tokens->at(cursor).token == CONST) nPointer->setConst();
+            cursor++;
+        }
+        pointers.push_back(nPointer);
+    }
+    return pointers;
+}
+/*
+ * direct_declarator
+	: IDENTIFIER
+	| '(' declarator ')'
+	| direct_declarator '(' parameter_type_list ')'
+	| direct_declarator '(' ')'
+	;*/
+bool CParse::directDeclarator(std::vector<DeclaratorPieces *> *declPieces) {
+    while (tokens->at(cursor).token != END)
+    {
+        if (tokens->at(cursor).token == IDENTIFIER)
+        {
+
+            auto* identifierx = new Identifier;
+            identifierx->identifier_name = tokens->at(cursor).lexeme;
+            declPieces->insert(declPieces->begin(), identifierx);
+            cursor++;
+        }
+        else if (tokens->at(cursor).token == OPEN_PARENTHESES)
+        {
+            cursor++;
+            std::vector<DeclaratorPieces *>* subDeclPieces = declarator();
+            if (subDeclPieces == nullptr)
+            {
+                return false;
+            }
+            declPieces->insert(declPieces->begin(), subDeclPieces->begin(), subDeclPieces->end());
+            delete subDeclPieces;
+            cursor++;
+        }
+        else {
+            //print_error(tokens->at(cursor).lineNumber, "Unable to parse direct declarator.");
+            return false;
+        }
+        // Now deal with parameter stuff
+
+        while (tokens->at(cursor).token == OPEN_PARENTHESES)
+        {
+            cursor++;
+            if (tokens->at(cursor).token == CLOSE_PARENTHESES)
+            {
+                auto* funcProto = new FunctionPrototype;
+                declPieces->push_back(funcProto);
+            } else {
+                auto* funcProto = parameterList();
+                declPieces->push_back(funcProto);
+            }
+            cursor++;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+/*
+parameter_list
+	: parameter_declaration
+	| parameter_list ',' parameter_declaration
+	;
+*/
+FunctionPrototype* CParse::parameterList() {
+    auto* funcProto = new FunctionPrototype;
+    auto* scopeAST = new ScopeAST;
+    scopeAST->parent = currentScope;
+    bool end = false;
+    while (!end)
+    {
+        auto* paramDecl = parameterDecleration();
+        if (paramDecl == nullptr)
+        {
+            delete funcProto;
+            return nullptr;
+        }
+        funcProto->types.push_back(paramDecl);
+        if (!paramDecl->abstractdecl) { // add to symbol table if not an abstract declarator.
+            if (scopeAST->findSymbolInLocalScope(paramDecl->identifier) != -1) { // found
+                delete funcProto;
+                return nullptr;
+            }
+            globalSymbolTable.push_back(paramDecl);
+            scopeAST->rst.SymbolHashMap[paramDecl->identifier] = globalIndex;
+            globalIndex++;
+        } else {
+            globalSymbolTable.push_back(paramDecl);
+            globalIndex++;
+        }
+
+        if (tokens->at(cursor).token != COMMA)
+        {
+            end = true;
+        }
+    }
+    funcProto->scope = scopeAST;
+    return funcProto;
+}
+
+Symbol* CParse::parameterDecleration() {
+    auto* ctype = new CType;
+
+    bool error = declarationSpecifiers(ctype);
+    if (error)
+    {
+        delete ctype;
+        return nullptr;
+    }
+
+    std::vector<DeclaratorPieces*>* dp = declarator();
+    if (dp == nullptr)
+    {
+        dp = abstractDeclarator();
+    }
+    if (dp == nullptr)
+    {
+        auto* symbol = new Symbol;
+        symbol->type = ctype;
+        symbol->abstractdecl = true;
+        return symbol;
+    }
+    ctype->declaratorPartList.insert(ctype->declaratorPartList.begin(), dp->begin(), dp->end());
+    if (dp->empty())
+    {
+        delete dp;
+        return nullptr;
+    }
+    if (dp->at(0)->getDPT() == D_IDENTIFIER) // Not abstract, add to symbol table
+    {
+        auto* ident = dynamic_cast<Identifier*>(dp->at(0));
+        auto* symbol = new Symbol;
+        symbol->type = ctype;
+        symbol->identifier = ident->identifier_name;
+        symbol->abstractdecl = false;
+        delete dp;
+        return symbol;
+    }
+    else {
+        auto* symbol = new Symbol;
+        symbol->type = ctype;
+        symbol->identifier = "";
+        symbol->abstractdecl = true;
+        delete dp;
+        return symbol;
+    }
+}
+
 /*
 compound_statement
 	: '{' '}'
@@ -1304,26 +1273,17 @@ assignment_expression
 
 
 Symbol* ScopeAST::findRegularSymbol(ScopeAST* scope, const std::string &identifier) {
-    auto value = scope->rst.SymbolHashMap.find(identifier);
-    if (value != scope->rst.SymbolHashMap.end())
-    {
-        return &scope->rst.symbols.at(value->second);
-    }
-    else if (scope->parent != nullptr)
-    {
-        return findRegularSymbol(scope->parent, identifier);
-    }
     return nullptr;
 }
 
-Symbol *ScopeAST::findSymbolInLocalScope(const std::string &identifier) {
+i64 ScopeAST::findSymbolInLocalScope(const std::string &identifier) {
     auto value = rst.SymbolHashMap.find(identifier);
     if (value != rst.SymbolHashMap.end())
     {
-        return &rst.symbols.at(value->second);
+        return value->second;
     }
 
-    return nullptr;
+    return -1;
 }
 /*
 FunctionAST::FunctionAST(CType *declaratorType, ScopeAST* parent) {
