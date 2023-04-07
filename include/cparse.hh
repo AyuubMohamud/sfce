@@ -2,6 +2,7 @@
 #include <sfce.hh>
 #include <lexer.hh>
 #include <memory>
+
 enum ASTop {
     A_ADD,
     A_SUB,
@@ -189,26 +190,11 @@ struct ScopeAST {
 class FunctionAST
 {
 public:
-    explicit FunctionAST(CType* declaratorType, const std::string& identifier)
+    explicit FunctionAST(const std::string& identifier)
     {
-        returnType = new CType;
-        returnType->typeSpecifier = std::move(declaratorType->typeSpecifier);
-        int cursor = 0;
-        funcIdentifier = dynamic_cast<Identifier*>(declaratorType->declaratorPartList.at(cursor))->identifier_name;
-        cursor++;
-        if (declaratorType->declaratorPartList.at(cursor)->getDPT() == FUNC)
-        {
-            prototype = *dynamic_cast<FunctionPrototype*>(declaratorType->declaratorPartList.at(cursor));
-        }
-        cursor++;
-        for (; cursor < declaratorType->declaratorPartList.size(); cursor++)
-        {
-            returnType->declaratorPartList.push_back(declaratorType->declaratorPartList.at(cursor));
-        }
+        funcIdentifier = identifier;
     }; // append parameter list from FunctionParameter type + extract return type
-    ~FunctionAST() {
-        delete returnType;
-    };
+    ~FunctionAST() = default;
     ASTNode* root = nullptr;
     void printFunction() const {
         ASTNode::print(root);
@@ -216,8 +202,7 @@ public:
     bool funcDefinedInFile = false;
     bool funcDeclInFile = false;
     std::string funcIdentifier;
-    CType* returnType;
-    FunctionPrototype prototype{};
+    u32 globalSymTableIdx = 0;
 
 };
 
@@ -227,6 +212,7 @@ public:
     explicit CParse(std::vector<Token>* input);
     bool parse();
     ~CParse();
+
 private:
     std::vector<Token>* tokens;
     u32 cursor = 0;

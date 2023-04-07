@@ -188,9 +188,13 @@ bool CParse::parse()
         if (tokens->at(cursor).token != SEMICOLON)
         {
             if (tokens->at(cursor).token == OPEN_BRACE) {
-                auto* function = new FunctionAST(type, identifier);
+                auto* function = new FunctionAST(identifier);
+                currentFunction = function;
                 function->root = compoundStatement();
+                function->globalSymTableIdx = currentScope->findSymbolInLocalScope(function->funcIdentifier);
                 functions.push_back(function);
+                function->printFunction();
+
             }
             else {
                 print_error(tokens->at(cursor).lineNumber, "Expected semicolon after declaration");
@@ -370,6 +374,7 @@ ASTNode* CParse::blockItem() {
         if (error) return nullptr;
         if (!initDeclaratorList(ctype)) return nullptr;
         auto* emptyNode = new ASTNode;
+        cursor++;
         return emptyNode;
     }
     else {
@@ -450,7 +455,7 @@ ASTNode* CParse::selectionStatement() {
 /*
  * iteration_statement
  	: WHILE '(' expression ')' statement
- 	| FOR '(' expression_statement expression_statement expression ')' statement
+ 	| FOR '(' expression_statement expression ')' statement
  	| FOR '(' declaration expression_statement expression ')' statement
  	;
  * */
@@ -475,9 +480,6 @@ ASTNode* CParse::iterationStatement() {
         }
         case FOR:
         {
-            ASTNode* decl = nullptr;
-            cursor++;
-            ASTNode* ExpressionStatement0 = nullptr;
             if (isTypeSpecifier(tokens->at(cursor)) || isTypeQualifier(tokens->at(cursor)))
             {
                 auto* scope = new ScopeAST;
@@ -498,49 +500,27 @@ ASTNode* CParse::iterationStatement() {
                     delete type;
                     return nullptr;
                 }
-                auto* node = tokens->at(cursor).token == EQUAL ? nullptr : new ASTNode;
-                if (node == nullptr) {
-                    node = constantExpression();
-                }
-                if (node == nullptr) {
-                    ScopeAST* temp = currentScope->parent;
-                    delete currentScope;
-                    currentScope = temp;
-                    delete type;
-                }
-                if (node->op == A_NOP)
-                {
-                    ASTNode::fillNode(node, nullptr, nullptr, false, A_INTLIT, "");
-                    node->value = 0;
-                }
                 cursor++;
-                decl = node;
             }
-            else {
-                ExpressionStatement0 = expressionStatement();
-                if (ExpressionStatement0 == nullptr)
-                {
-                    return nullptr;
-                }
-            }
+
             auto* ExpressionStatement = expressionStatement();
-            ExpressionStatement0 = (ExpressionStatement0 == nullptr) ? decl : ExpressionStatement0;
             auto* expr = expression();
             cursor++; auto* Statement = statement();
-            if (expr == nullptr || Statement == nullptr)
+            if (ExpressionStatement == nullptr || expr == nullptr || Statement == nullptr)
             {
                 delete expr;
                 delete Statement;
-                delete ExpressionStatement0;
                 delete ExpressionStatement;
                 return nullptr;
             }
             auto* rootNode = new ASTNode;
             auto* forCond = new ASTNode;
             auto* forBody = new ASTNode;
-            ASTNode::fillNode(rootNode, ExpressionStatement0, forCond, false, A_FORDECL, "");
+            ASTNode::fillNode(rootNode, nullptr, forCond, false, A_FORDECL, "");
+            rootNode->scope = currentScope;
             ASTNode::fillNode(forCond, ExpressionStatement, forBody, false, A_FORCOND, "");
             ASTNode::fillNode(forBody, Statement, expr, false, A_FORBODY, "");
+            currentScope = currentScope->parent;
             return rootNode;
         }
         default:

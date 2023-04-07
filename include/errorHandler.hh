@@ -12,3 +12,6 @@ void print_error(const char* string);
 void print_error(unsigned long long line, const char* string);
 
 void print_note(unsigned long long line, const char* string);
+
+void print_warning(unsigned long long line, const char* string);
+

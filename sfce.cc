@@ -3,6 +3,7 @@
 #include <errorHandler.hh>
 #include <lexer.hh>
 #include <cparse.hh>
+#include <semanticChecker.hh>
 #define ANSI_COLOR_BLUE    "\x1b[34m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
@@ -45,6 +46,8 @@ int main(int argc, const char** argv)
     CParse parser(result->TokenisedInput);
     if (!parser.parse()) print_error("Error whilst parsing!");
 
+    //SemanticAnalyser analyser;
+    //analyser.startSemanticAnalysis(parser);
     delete lexer;
 
 
