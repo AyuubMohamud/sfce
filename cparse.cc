@@ -2,25 +2,72 @@
 #include <errorHandler.hh>
 
 /*
-Copyright 2023 Ayuub Mohamud
+MIT License
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software
-and associated documentation files (the “Software”), to deal in the Software without restriction,
-including without limitation the rights to use, copy, modify, merge, publish, distribute,
-sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
+Copyright (c) 2023 Ayuub Mohamud
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 */
 
-/* kinda brute forced Recursive Descent Parser for the C programming language (2011 specification)
- */
+// Recursive Descent Parser for a subset of C programming language (2011 specification)
+std::unordered_map<TokenType, ASTop> binHashMap = {
+        {STAR, A_MULT},
+        {AMPERSAND, A_AND},
+        {LOGICALAND, A_LAND},
+        {LOGICALORR, A_LOR},
+        {BACKSLASH, A_DIV},
+        {MODULO, A_MODULO},
+        {ADD, A_ADD},
+        {MINUS, A_SUB},
+        {LSL, A_SLL},
+        {LSR, A_ASR},
+        {LESSTHAN, A_LT},
+        {LESSTHANOREQUALTO, A_LTEQ},
+        {MORETHAN, A_MT},
+        {MORETHANOREQUALTO, A_MTEQ},
+        {EQUAL, A_EQ},
+        {NOTEQUAL, A_NEQ},
+        {BITWISEORR, A_OR},
+        {BITWISEXOR, A_XOR}
+};
+bool ASTopIsBinOp(ASTop op) {
+    return (
+            op == A_MULT
+            || op == A_AND
+            || op == A_LAND
+            || op == A_LOR
+            || op == A_DIV
+            || op == A_MODULO
+            || op == A_ADD
+            || op == A_SUB
+            || op == A_SLL
+            || op == A_ASR
+            || op == A_LT
+            || op == A_LTEQ
+            || op == A_MT
+            || op == A_MTEQ
+            || op == A_EQ
+            || op == A_NEQ
+            || op == A_OR
+            || op == A_XOR
+            );
+}
 void deleteVecOfPtrs(std::vector<CType*>* ptrs)
 {
     for (auto i : *ptrs)
@@ -190,8 +237,11 @@ bool CParse::parse()
             if (tokens->at(cursor).token == OPEN_BRACE) {
                 auto* function = new FunctionAST(identifier);
                 currentFunction = function;
-                function->root = compoundStatement();
                 function->globalSymTableIdx = currentScope->findSymbolInLocalScope(function->funcIdentifier);
+                dynamic_cast<FunctionPrototype*>(globalSymbolTable[function->globalSymTableIdx]->type->declaratorPartList.at(1))->scope->parent = currentScope;
+                currentScope = dynamic_cast<FunctionPrototype*>(globalSymbolTable[function->globalSymTableIdx]->type->declaratorPartList.at(1))->scope;
+                function->root = compoundStatement();
+                currentScope = currentScope->parent;
                 functions.push_back(function);
                 function->printFunction();
 
@@ -950,7 +1000,7 @@ ASTNode* CParse::argumentExpressionList() {
     return glueNode;
 }
 
-ASTop CParse::isBinOp(Token& token)
+ASTop isBinOp(Token& token)
 {
     auto value = binHashMap.find(token.token);
     if (value == binHashMap.end())
@@ -1158,6 +1208,7 @@ FunctionPrototype* CParse::parameterList() {
     auto* funcProto = new FunctionPrototype;
     auto* scopeAST = new ScopeAST;
     scopeAST->parent = currentScope;
+    currentScope = scopeAST;
     bool end = false;
     while (!end)
     {
@@ -1186,6 +1237,7 @@ FunctionPrototype* CParse::parameterList() {
             end = true;
         }
     }
+    currentScope = currentScope->parent;
     funcProto->scope = scopeAST;
     return funcProto;
 }
@@ -1252,8 +1304,17 @@ assignment_expression
  * */
 
 
-Symbol* ScopeAST::findRegularSymbol(ScopeAST* scope, const std::string &identifier) {
-    return nullptr;
+i64 ScopeAST::findRegularSymbol(const std::string &identifier) {
+    auto value = rst.SymbolHashMap.find(identifier);
+    if (value != rst.SymbolHashMap.end())
+    {
+        return value->second;
+    }
+    else {
+        if (parent != nullptr)
+            return parent->findRegularSymbol(identifier);
+    }
+    return -1;
 }
 
 i64 ScopeAST::findSymbolInLocalScope(const std::string &identifier) {
@@ -1265,18 +1326,33 @@ i64 ScopeAST::findSymbolInLocalScope(const std::string &identifier) {
 
     return -1;
 }
-/*
-FunctionAST::FunctionAST(CType *declaratorType, ScopeAST* parent) {
-    auto* symbol = parent->findRegularSymbol(identifier);
-    if (symbol)
-    {
 
+i64 ScopeAST::findEarliestScopeLevel(i64 startVal, const std::string &identifier) {
+    auto value = rst.SymbolHashMap.find(identifier);
+    if (value != rst.SymbolHashMap.end())
+    {
+        return startVal;
     }
+    else {
+        if (parent != nullptr)
+            return parent->findEarliestScopeLevel(startVal+1, identifier);
+    }
+    return -1;
 }
-*/
+
+
 
 FunctionPrototype::~FunctionPrototype() {
     delete scope;
+}
+
+std::string FunctionPrototype::print() {
+    std::string temp;
+    for (auto* i: types) {
+        temp.append(i->type->typeAsString());
+        temp.append(",");
+    }
+    return temp;
 }
 
 ASTNode::~ASTNode() {
@@ -1288,6 +1364,132 @@ void ASTNode::deleteNode(ASTNode *node) {
         return;
     deleteNode(node->left);
     deleteNode(node->right);
+
+    delete node->type;
     delete node->scope;
     delete node;
+}
+
+bool CType::isCompatible(CType type, ASTop op) {
+    return false;
+}
+
+bool CType::isPtr() {
+    i32 cursor = 0;
+    if (declaratorPartList.empty())
+        return false;
+    if (declaratorPartList.at(0)->getDPT() == D_IDENTIFIER)
+    {
+        cursor = 1;
+        if (declaratorPartList.size() == 1)
+            return false;
+    }
+
+    if (declaratorPartList.at(cursor)->getDPT() == PTR)
+    {
+        return true;
+    }
+    return false;
+}
+
+bool CType::isArray() {
+    i32 cursor = 0;
+    if (declaratorPartList.empty())
+        return false;
+    if (declaratorPartList.at(0)->getDPT() == D_IDENTIFIER)
+    {
+        cursor = 1;
+        if (declaratorPartList.size() == 1)
+            return false;
+    }
+    if (declaratorPartList.at(cursor)->getDPT() == ARR)
+    {
+        return true;
+    }
+    return false;
+}
+
+bool CType::isNumVar() {
+    if (declaratorPartList.empty())
+        return true;
+
+    if (declaratorPartList.at(0)->getDPT() == D_IDENTIFIER)
+    {
+        if (declaratorPartList.size() == 1)
+            return true;
+        return false;
+    }
+    return false;
+}
+
+bool CType::isFuncPtr() {
+    i32 cursor = 0;
+    if (declaratorPartList.empty())
+        return false;
+    if (declaratorPartList.at(0)->getDPT() == D_IDENTIFIER)
+    {
+        cursor = 1;
+        if (declaratorPartList.size() == 1)
+            return false;
+    }
+
+    if (declaratorPartList.at(cursor)->getDPT() == FUNC)
+    {
+        if (declaratorPartList.size() == cursor+1)
+            return false;
+
+        if (declaratorPartList.at(cursor+1)->getDPT() == PTR)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CType::isEqual(CType *otherType, bool ptrOrNum) {
+    if (otherType == nullptr) return false;
+    bool notEqual = false;
+    Token token;
+    Token token2;
+    for (const auto& i: typeSpecifier)
+    {
+        if (isTypeSpecifier(i))
+            token.token = i.token;
+    }
+    for (const auto& i : otherType->typeSpecifier)
+    {
+        if (isTypeSpecifier(i))
+            token2.token = i.token;
+    }
+
+    if (token.token == token2.token && ptrOrNum)
+        return true;
+    if (token.token != token2.token)
+        return false; // File will not be compiled if ptrOrNum is false and this condition occurs
+
+    if (otherType->declaratorPartList.size() != declaratorPartList.size())
+        return false;
+
+    bool equal = true;
+    int x = 0;
+    while (equal && (x < declaratorPartList.size()))
+    {
+        equal = (declaratorPartList.at(0) == otherType->declaratorPartList.at(0));
+        x++;
+    }
+    return equal;
+}
+
+std::string CType::typeAsString() {
+    std::string type{};
+    for (const auto& i: typeSpecifier)
+    {
+        type.append(i.lexeme);
+    }
+
+    return type;
+}
+
+std::string DeclaratorPieces::print() {
+    return std::string();
 }

@@ -3,25 +3,25 @@
 #include <errorHandler.hh>
 #include <lexer.hh>
 #include <cparse.hh>
-#include <semanticChecker.hh>
+
 #define ANSI_COLOR_BLUE    "\x1b[34m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 
 void help()
 {
-    printf(ANSI_COLOR_BLUE "Usage: sfce [filenames] [target_options] -o [output filename]\n" ANSI_COLOR_RESET);
+    printf(ANSI_COLOR_BLUE "Usage: scfe [filenames] [target_options] -o [output filename]\n" ANSI_COLOR_RESET);
 }
 
 void version()
 {
-    printf("SFCE 0.1: Built by %s\n", COMPILER);
+    printf("SCFE 0.1: Built by %s\n", COMPILER);
 }
 int main(int argc, const char** argv)
 {
     if (argc < 2)
     {
-        print_error("SFCE called with no arguments!");
+        print_error("SCFE called with no arguments!");
         help();
         return 1;
     }
@@ -46,8 +46,12 @@ int main(int argc, const char** argv)
     CParse parser(result->TokenisedInput);
     if (!parser.parse()) print_error("Error whilst parsing!");
 
-    //SemanticAnalyser analyser;
-    //analyser.startSemanticAnalysis(parser);
+    SemanticAnalyser analyser;
+    bool success = analyser.startSemanticAnalysis(parser);
+    if (success)
+    {
+        printf("Semantically OK translation unit, proceeding to produce code!\n");
+    }
     delete lexer;
 
 

@@ -2,7 +2,8 @@
 #include <sfce.hh>
 #include <lexer.hh>
 #include <memory>
-
+#include <graph.hh>
+struct ScopeAST;
 enum ASTop {
     A_ADD,
     A_SUB,
@@ -47,8 +48,11 @@ enum ASTop {
     A_FORDECL,
     A_CS,
     A_MV,
-    A_END
+    A_END,
+    A_SLR
 };
+ASTop isBinOp(Token& token);
+bool ASTopIsBinOp(ASTop op);
 enum DeclaratorPieceType
 {
     PTR,
@@ -62,6 +66,7 @@ class DeclaratorPieces
 public:
     virtual DeclaratorPieceType getDPT() {return dpt;};
     virtual ~DeclaratorPieces() = default;
+    virtual std::string print();
 protected:
     DeclaratorPieceType dpt = PTR;
 
@@ -74,12 +79,21 @@ public:
     void setVolatile() {isVolatile = true;};
     bool isConstPtr() {return isConst;};
     bool isVolatilePtr() {return isVolatile;};
+    std::string print() override {
+        std::string temp;
+        temp.append("*");
+        if (isConst)
+            temp.append("const");
+        if (isVolatile)
+            temp.append("volatile");
+        return temp;
+    }
 private:
     DeclaratorPieceType dpt = PTR;
     bool isConst = false;
     bool isVolatile = false;
 };
-class ScopeAST;
+
 struct CType
 {
     ~CType() {
@@ -95,6 +109,8 @@ struct CType
     bool isArray();
     bool isNumVar();
     bool isFuncPtr();
+    bool isEqual(CType* otherType, bool ptrOrNum);
+    std::string typeAsString();
 
 private:
     bool assignCompat(CType type);
@@ -108,6 +124,7 @@ public:
     ScopeAST* scope = nullptr;
 
     std::vector<Symbol*> types{};
+    std::string print() override;
 private:
     DeclaratorPieceType dpt = FUNC;
 };
@@ -183,10 +200,13 @@ struct ScopeAST {
     ~ScopeAST() = default;
     RegularSymbolTable rst;
 
-    static Symbol* findRegularSymbol(ScopeAST* scope, const std::string& identifier);
+    i64 findRegularSymbol(const std::string& identifier);
     i64 findSymbolInLocalScope(const std::string& identifier);
+    i64 findEarliestScopeLevel(i64 startVal, const std::string &identifier);
 };
-
+bool isTypeSpecifier(const Token& token);
+bool isTypeQualifier(const Token& token);
+int sizeOf(std::vector<Token>& typeSpecifiers);
 class FunctionAST
 {
 public:
@@ -209,6 +229,8 @@ public:
 class CParse
 {
 public:
+    friend class SemanticAnalyser;
+    friend class AVM;
     explicit CParse(std::vector<Token>* input);
     bool parse();
     ~CParse();
@@ -257,28 +279,393 @@ private:
     ASTNode* binaryExpression();
     bool typeName(CType* ctype);
 
-    std::unordered_map<TokenType, ASTop> binHashMap = {
-            {STAR, A_MULT},
-            {AMPERSAND, A_AND},
-            {LOGICALAND, A_LAND},
-            {LOGICALORR, A_LOR},
-            {BACKSLASH, A_DIV},
-            {MODULO, A_MODULO},
-            {ADD, A_ADD},
-            {MINUS, A_SUB},
-            {LSL, A_SLL},
-            {LSR, A_ASR},
-            {LESSTHAN, A_LT},
-            {LESSTHANOREQUALTO, A_LTEQ},
-            {MORETHAN, A_MT},
-            {MORETHANOREQUALTO, A_MTEQ},
-            {EQUAL, A_EQ},
-            {NOTEQUAL, A_NEQ},
-            {BITWISEORR, A_OR},
-            {BITWISEXOR, A_XOR}
-    };
 
-    ASTop isBinOp(Token& token);
+
+
     std::string identifier;
     bool fuse = false;
+};
+
+class SemanticAnalyser {
+public:
+    SemanticAnalyser();
+    ~SemanticAnalyser();
+    ScopeAST* scope = nullptr;
+    FunctionAST* currentFunction = nullptr;
+
+    bool analyseFunction(CParse& parserState, FunctionAST* function);
+
+    bool analyseTree(CParse& parserState, ASTNode* root);
+
+    CType * evalType(CParse& parserState, ASTNode* expr);
+
+    bool startSemanticAnalysis(CParse &parserState);
+
+    CType *normaliseTypes(CType *LHS, CType *RHS);
+};
+enum class AVMOpcode {
+    // Arithmetic class
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    MOD,
+    SLL,
+    SLR,
+    ASR,
+    AND,
+    ORR,
+    XOR,
+    // Memory class
+    GEP,
+    LD,
+    ST,
+    // Control Flow class
+    CMP,
+    CSEL,
+    BR,
+    RET,
+    CALL,
+    // Miscellaneous
+    MV,
+    NOP
+};
+enum class CMPCode {
+    LT,
+    MT,
+    LTEQ,
+    MTEQ,
+    EQ,
+    NEQ
+};
+std::unordered_map<CMPCode, std::string> CMPtoString {
+        {CMPCode::LT, "LT"},
+        {CMPCode::MT, "MT"},
+        {CMPCode::LTEQ, "LTEQ"},
+        {CMPCode::MTEQ, "MTEQ"},
+        {CMPCode::EQ, "EQ"},
+        {CMPCode::NEQ, "NEQ"}
+};
+std::unordered_map<AVMOpcode, std::string> OpcodeToString {
+        {AVMOpcode::ADD, "ADD"},
+        {AVMOpcode::SUB, "SUB"},
+        {AVMOpcode::MUL, "MUL"},
+        {AVMOpcode::DIV, "DIV"},
+        {AVMOpcode::MOD, "MOD"},
+        {AVMOpcode::SLL, "SLL"},
+        {AVMOpcode::ASR, "ASR"},
+        {AVMOpcode::SLR, "SLR"},
+        {AVMOpcode::AND, "AND"},
+        {AVMOpcode::XOR, "XOR"},
+        {AVMOpcode::ORR, "ORR"}
+};
+std::unordered_map<ASTop, AVMOpcode> ASTOperationToAVM {
+        {A_ADD, AVMOpcode::ADD},
+        {A_SUB, AVMOpcode::SUB},
+        {A_MULT, AVMOpcode::MUL},
+        {A_DIV, AVMOpcode::DIV},
+        {A_MODULO, AVMOpcode::MOD},
+        {A_SLL, AVMOpcode::SLL},
+        {A_ASR, AVMOpcode::ASR},
+        {A_SLR, AVMOpcode::SLR},
+        {A_AND, AVMOpcode::AND},
+        {A_XOR, AVMOpcode::XOR},
+        {A_OR, AVMOpcode::ORR}
+};
+
+std::string mapOptoString(AVMOpcode op) {
+    auto value = OpcodeToString.find(op);
+    if (value == OpcodeToString.end())
+        return {};
+    return value->second;
+}
+std::string mapConditionCodetoString(CMPCode code) {
+    auto value = CMPtoString.find(code);
+    if (value == CMPtoString.end())
+        return {};
+    return value->second;
+}
+
+AVMOpcode toAVM(ASTop op)
+{
+    auto value = ASTOperationToAVM.find(op);
+    if (value == ASTOperationToAVM.end())
+        return AVMOpcode::NOP;
+    return value->second;
+}
+bool ASTopIsBinOpAVM(ASTop op) {
+    return (
+            op == A_MULT
+            || op == A_AND
+            || op == A_LAND
+            || op == A_LOR
+            || op == A_DIV
+            || op == A_MODULO
+            || op == A_ADD
+            || op == A_SUB
+            || op == A_SLL
+            || op == A_ASR
+            || op == A_SLR
+            || op == A_OR
+            || op == A_XOR
+    );
+}
+enum class AVMInstructionType {
+    ARITHMETIC,
+    LOAD,
+    STORE,
+    GEP,
+    CMP,
+    BRANCH,
+    CALL,
+    RET,
+    MV
+};
+class AVMInstruction {
+public:
+    virtual AVMInstructionType getInstructionType();
+    virtual std::string print();
+    AVMOpcode opcode = AVMOpcode::NOP;
+};
+
+std::string AVMInstruction::print() {
+    return std::string();
+}
+
+AVMInstructionType AVMInstruction::getInstructionType() {
+    return AVMInstructionType::ARITHMETIC;
+}
+
+class LoadMemoryInstruction : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string dest{};
+    std::string addrVar{};
+    std::string print() override {
+        std::string temp{};
+        temp.append(dest);
+        temp.append(" = LOAD");
+        temp.append(addrVar);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::LOAD;
+};
+class StoreMemoryInstruction : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string src{};
+    std::string addrVar{};
+    std::string print() override {
+        std::string temp{};
+        temp.append("STORE ");
+        temp.append(src);
+        temp.append(" , ");
+        temp.append(addrVar);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::STORE;
+};
+class GetElementPtr : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string dest{};
+    std::string src{};
+    std::string print() override {
+        std::string temp{};
+        temp.append(dest);
+        temp.append(" = GEP ");
+        temp.append(src);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::GEP;
+};
+class ComparisonInstruction : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string dest{};
+    std::string op1{};
+    std::string op2{};
+    CMPCode compareCode = CMPCode::EQ;
+    std::string print() override {
+        std::string temp{};
+        temp.append(dest);
+        temp.append("= CMP ");
+        temp.append(mapConditionCodetoString(compareCode));
+        temp.append(" ");
+        temp.append(op1);
+        temp.append(" , ");
+        temp.append(op2);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::CMP;
+};
+class RetInstruction : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string value{};
+    std::string print() override {
+        std::string temp{};
+        temp.append("RET ");
+        temp.append(value);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::RET;
+};
+class ArithmeticInstruction : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string dest{};
+    std::string src1{};
+    std::string src2{};
+    std::string print() override {
+        std::string temp{};
+        temp.append(dest);
+        temp.append("= ");
+        temp.append(mapOptoString(opcode));
+        temp.append(" ");
+        temp.append(src1);
+        temp.append(" , ");
+        temp.append(src2);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::ARITHMETIC;
+};
+class CallInstruction : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string returnVal{};
+    std::string funcName{};
+    std::vector<std::string> args;
+    std::string print() override {
+        std::string temp{};
+        temp.append(returnVal);
+        temp.append("= ");
+        temp.append("CALL ");
+        temp.append(funcName);
+        temp.append(" (");
+        for (auto& i : args) {
+            temp.append(i);
+            temp.append(",");
+        }
+        temp.erase(temp.end());
+        temp.append(")");
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::CALL;
+};
+
+class MoveInstruction : public AVMInstruction {
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string dest{};
+    std::string valueToBeMoved{};
+    std::string print() override
+    {
+        std::string temp{};
+        temp.append(dest);
+        temp.append(" = MV ");
+        temp.append(valueToBeMoved);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::MV;
+};
+class BranchInstruction : public AVMInstruction {
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string falseTarget{};
+    std::string trueTarget{};
+    std::string dependantComparison{}; // #1 means unconditional branch on the trueTarget
+    std::string print() override
+    {
+        std::string temp{};
+        temp.append("BR ");
+        temp.append(dependantComparison);
+        temp.append(" true: ");
+        temp.append(trueTarget);
+        temp.append(" false: ");
+        temp.append(falseTarget);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::BRANCH;
+};
+class CSELInstruction : public AVMInstruction {};
+
+class AVMBasicBlock {
+public:
+    std::vector<AVMInstruction*> sequenceOfInstructions;
+    std::string print() {
+        std::string temp{};
+        for (auto* i : sequenceOfInstructions)
+        {
+            temp.append(i->print());
+            temp.append("\n");
+        }
+        return temp;
+    }
+};
+
+class AVMFunction {
+public:
+    std::vector<Symbol*> incomingSymbols;
+    std::vector<AVMBasicBlock*> basicBlocksInFunction;
+    AdjacencyMatrix* adjacencyMatrix = nullptr;
+private:
+
+};
+
+class AVM {
+public:
+    explicit AVM(CParse &parserState);
+    ~AVM() = default;
+    AVMBasicBlock* currentBasicBlock = nullptr;
+    CParse& parserState;
+    std::vector<AVMFunction*> compilationUnit{};
+    void AVMByteCodeDriver(FunctionAST* functionToBeTranslated);
+    AVMBasicBlock *cvtBasicBlockToAVMByteCode(ASTNode *node);
+
+    AVMFunction* currentFunction = nullptr;
+    std::string genCode(ASTNode* expr);
+    std::string genTmpDest() {
+        std::string tmp = "%tmp.";
+        tmp.append(std::to_string(tmpCounter));
+        tmpCounter++;
+        return tmp;
+    }
+    std::vector<std::string> genArgs(ASTNode* argNode)
+    {
+        if (argNode == nullptr)
+            return {};
+        std::vector<std::string> temp;
+        temp.push_back(argNode->left->identifier);
+        auto genArgs2 = genArgs(argNode->right);
+        temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
+        return temp;
+    }
+    u64 tmpCounter = 0;
 };

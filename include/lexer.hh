@@ -43,7 +43,7 @@ enum TokenType
     WHILE,
     BOOL,
     COMPLEX,
-    IMAGINERY,
+    IMAGINARY,
     // Identifiers
     IDENTIFIER,
     // Literals
@@ -172,6 +172,6 @@ private:
             {"while", WHILE},
             {"_Complex", COMPLEX},
             {"_Bool", BOOL},
-            {"_Imaginery", IMAGINERY}
+            {"_Imaginary", IMAGINARY}
     };
 };

@@ -15,3 +15,5 @@ void print_note(unsigned long long line, const char* string);
 
 void print_warning(unsigned long long line, const char* string);
 
+void print_error(unsigned long long line, const char* funcName, const char* type1, const char* type2);
+void print_error(unsigned long long line, const char* funcName, const char* type1);
