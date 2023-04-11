@@ -52,6 +52,22 @@ int main(int argc, const char** argv)
     {
         printf("Semantically OK translation unit, proceeding to produce code!\n");
     }
+
+    AVM abstractVirtualMachine(parser);
+    for (auto* i: parser.functions)
+    {
+        abstractVirtualMachine.AVMByteCodeDriver(i);
+    }
+
+    for (auto* i: abstractVirtualMachine.compilationUnit)
+    {
+        for (auto* x : i->basicBlocksInFunction) {
+            printf("LABEL: %s\n", x->label.c_str());
+            printf("%s", x->print().c_str());
+        }
+    }
+
+
     delete lexer;
 
 

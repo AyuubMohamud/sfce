@@ -1,6 +1,6 @@
 #include <sfce.hh>
 #include <cparse.hh>
-
+#include <errorHandler.hh>
 /*
  *
  * Traverse AST, ignore A_GLUES
@@ -10,18 +10,57 @@
 
 void AVM::AVMByteCodeDriver(FunctionAST* functionToBeTranslated) {
     auto* function = new AVMFunction;
-    for (const auto& i : parserState.currentScope->rst.SymbolHashMap)
-    {
-        function->incomingSymbols.push_back(parserState.globalSymbolTable[i.second]);
-    }
-
+    auto* funcSymbol = parserState.globalSymbolTable[functionToBeTranslated->globalSymTableIdx];
+    auto* prototype = dynamic_cast<FunctionPrototype*>(funcSymbol->type->declaratorPartList[1]);
+    currentFunction = function;
+    for (auto* i : prototype->types)
+        currentFunction->incomingSymbols.push_back(i);
+    std::string label = "entry";
+    bool done = false;
+    ASTNode* node = functionToBeTranslated->root;
+    do {
+        currentNode = nullptr;
+        auto* basicBlock = new AVMBasicBlock;
+        basicBlock->label = label;
+        cvtBasicBlockToAVMByteCode(node, basicBlock);
+        if (currentNode == nullptr)
+        {
+            done = true;
+        }
+        else {
+            node = currentNode;
+        }
+        label = genLabel();
+    } while (!done);
+    compilationUnit.push_back(function);
 }
 
-AVMBasicBlock* AVM::cvtBasicBlockToAVMByteCode(ASTNode* node) {
-    auto* basicBlock = new AVMBasicBlock;
+void AVM::cvtBasicBlockToAVMByteCode(ASTNode* node, AVMBasicBlock* basicBlock) {
+    AVMBasicBlock* previous = nullptr;
+    previous = currentBasicBlock;
     currentBasicBlock = basicBlock;
     genCode(node);
-    return basicBlock;
+    currentFunction->basicBlocksInFunction.push_back(basicBlock);
+    ASTNode* cNode = nullptr;
+    if (currentNode == nullptr)
+    {
+        return;
+    }
+    switch (currentNode->left->op) {
+        case A_IFDECL:
+        {
+            cNode = currentNode;
+            currentNode = currentNode->right;
+            auto* ifStatements = ifHandler(cNode->left);
+            currentFunction->basicBlocksInFunction.push_back(ifStatements->truePath);
+            currentFunction->basicBlocksInFunction.push_back(ifStatements->falsePath);
+            delete ifStatements;
+            break;
+        }
+        default:
+            break;
+    }
+    currentBasicBlock = previous;
 }
 
 
@@ -113,23 +152,55 @@ std::string AVM::genCode(ASTNode *expr) {
         }
         case A_GLUE:
         {
+            if (expr->left->op == A_IFDECL)
+            {
+                currentNode = expr;
+                return {};
+            }
             genCode(expr->left);
             genCode(expr->right);
             // Since its glue they are not connected, simply ignore their values
+            return {};
         }
         case A_END:
         {
             auto* nop = new ArithmeticInstruction;
             nop->dest = "END";
             currentBasicBlock->sequenceOfInstructions.push_back(nop);
-            return {};
+            return "END";
         }
         case A_CS:
         {
+            if (expr->left->op == A_IFDECL)
+            {
+                currentNode = expr;
+                return {};
+            }
             genCode(expr->left);
+            return {};
+        }
+        case A_MV:
+        {
+            auto* moveInstruction = new MoveInstruction;
+            moveInstruction->dest = genCode(expr->left);
+            moveInstruction->valueToBeMoved = genCode(expr->right);
+            moveInstruction->opcode = AVMOpcode::MV;
+            currentBasicBlock->sequenceOfInstructions.push_back(moveInstruction);
+            return {};
         }
         default:
         {
+            if (ASTopIsCMPOp(expr->op))
+            {
+                auto* comparisonInstruction = new ComparisonInstruction;
+                comparisonInstruction->dest = genTmpDest();
+                comparisonInstruction->compareCode = toCMPCode(expr->op);
+                comparisonInstruction->op1 = genCode(expr->left);
+                comparisonInstruction->op2 = genCode(expr->right);
+                comparisonInstruction->opcode = AVMOpcode::CMP;
+                currentBasicBlock->sequenceOfInstructions.push_back(comparisonInstruction);
+                return comparisonInstruction->dest;
+            }
             if (ASTopIsBinOp(expr->op))
             {
                 auto* arithmeticInstruction = new ArithmeticInstruction;
@@ -138,16 +209,53 @@ std::string AVM::genCode(ASTNode *expr) {
                 arithmeticInstruction->src2 = genCode(expr->right);
                 arithmeticInstruction->opcode = toAVM(expr->op);
                 currentBasicBlock->sequenceOfInstructions.push_back(arithmeticInstruction);
+                return arithmeticInstruction->dest;
             }
+
         }
 
     }
     return {};
 }
-
-AVM::AVM(CParse &parserState) : parserState(parserState) {
-
+AVMBasicBlocksForIFs* AVM::ifHandler(ASTNode *expr) {
+    auto* res = new AVMBasicBlocksForIFs;
+    auto* truePath = new AVMBasicBlock; res->truePath = truePath;   res->truePath->label = genLabel();
+    if (toCMPCode(expr->left->op) == CMPCode::NC)
+    {
+        auto* branchInstruction = new BranchInstruction;
+        branchInstruction->trueTarget = res->truePath->label;
+        branchInstruction->falseTarget = "NULL";
+        branchInstruction->dependantComparison = "#1";
+        cvtBasicBlockToAVMByteCode(expr->right->left, res->truePath);
+        return res;
+    }
+    auto* falsePath = new AVMBasicBlock;
+    res->falsePath = falsePath;
+    res->falsePath->label = genLabel();
+    auto* branchInstruction = new BranchInstruction;
+    branchInstruction->trueTarget = res->truePath->label;
+    branchInstruction->falseTarget = res->falsePath->label;
+    branchInstruction->dependantComparison = genCode(expr->left);
+    ASTNode* saveNode = currentNode;
+    currentNode = nullptr;
+    cvtBasicBlockToAVMByteCode(expr->right->left, res->truePath);
+    cvtBasicBlockToAVMByteCode(expr->right->right, res->falsePath);
+    currentNode = saveNode;
+    return res;
 }
 
+
+
+AVM::AVM(CParse &parserState) : parserState(parserState) {
+    for (const auto& i : parserState.currentScope->rst.SymbolHashMap)
+    {
+        globalSyms.push_back(parserState.globalSymbolTable[i.second]);
+    }
+}
+
+AVM::~AVM() {
+    for (auto i: compilationUnit)
+        delete i;
+}
 
 

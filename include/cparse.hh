@@ -233,13 +233,13 @@ public:
     friend class AVM;
     explicit CParse(std::vector<Token>* input);
     bool parse();
+    std::vector<FunctionAST*> functions;
     ~CParse();
 
 private:
     std::vector<Token>* tokens;
     u32 cursor = 0;
     ScopeAST* currentScope = nullptr;
-    std::vector<FunctionAST*> functions;
     FunctionAST* currentFunction{};
     std::vector<Symbol*> globalSymbolTable{};
     u64 globalIndex = 0;
@@ -336,80 +336,10 @@ enum class CMPCode {
     LTEQ,
     MTEQ,
     EQ,
-    NEQ
-};
-std::unordered_map<CMPCode, std::string> CMPtoString {
-        {CMPCode::LT, "LT"},
-        {CMPCode::MT, "MT"},
-        {CMPCode::LTEQ, "LTEQ"},
-        {CMPCode::MTEQ, "MTEQ"},
-        {CMPCode::EQ, "EQ"},
-        {CMPCode::NEQ, "NEQ"}
-};
-std::unordered_map<AVMOpcode, std::string> OpcodeToString {
-        {AVMOpcode::ADD, "ADD"},
-        {AVMOpcode::SUB, "SUB"},
-        {AVMOpcode::MUL, "MUL"},
-        {AVMOpcode::DIV, "DIV"},
-        {AVMOpcode::MOD, "MOD"},
-        {AVMOpcode::SLL, "SLL"},
-        {AVMOpcode::ASR, "ASR"},
-        {AVMOpcode::SLR, "SLR"},
-        {AVMOpcode::AND, "AND"},
-        {AVMOpcode::XOR, "XOR"},
-        {AVMOpcode::ORR, "ORR"}
-};
-std::unordered_map<ASTop, AVMOpcode> ASTOperationToAVM {
-        {A_ADD, AVMOpcode::ADD},
-        {A_SUB, AVMOpcode::SUB},
-        {A_MULT, AVMOpcode::MUL},
-        {A_DIV, AVMOpcode::DIV},
-        {A_MODULO, AVMOpcode::MOD},
-        {A_SLL, AVMOpcode::SLL},
-        {A_ASR, AVMOpcode::ASR},
-        {A_SLR, AVMOpcode::SLR},
-        {A_AND, AVMOpcode::AND},
-        {A_XOR, AVMOpcode::XOR},
-        {A_OR, AVMOpcode::ORR}
+    NEQ,
+    NC
 };
 
-std::string mapOptoString(AVMOpcode op) {
-    auto value = OpcodeToString.find(op);
-    if (value == OpcodeToString.end())
-        return {};
-    return value->second;
-}
-std::string mapConditionCodetoString(CMPCode code) {
-    auto value = CMPtoString.find(code);
-    if (value == CMPtoString.end())
-        return {};
-    return value->second;
-}
-
-AVMOpcode toAVM(ASTop op)
-{
-    auto value = ASTOperationToAVM.find(op);
-    if (value == ASTOperationToAVM.end())
-        return AVMOpcode::NOP;
-    return value->second;
-}
-bool ASTopIsBinOpAVM(ASTop op) {
-    return (
-            op == A_MULT
-            || op == A_AND
-            || op == A_LAND
-            || op == A_LOR
-            || op == A_DIV
-            || op == A_MODULO
-            || op == A_ADD
-            || op == A_SUB
-            || op == A_SLL
-            || op == A_ASR
-            || op == A_SLR
-            || op == A_OR
-            || op == A_XOR
-    );
-}
 enum class AVMInstructionType {
     ARITHMETIC,
     LOAD,
@@ -421,20 +351,22 @@ enum class AVMInstructionType {
     RET,
     MV
 };
+std::string mapOptoString(AVMOpcode op);
+std::string mapConditionCodetoString(CMPCode code);
+AVMOpcode toAVM(ASTop op);
+bool ASTopIsBinOpAVM(ASTop op);
 class AVMInstruction {
 public:
-    virtual AVMInstructionType getInstructionType();
-    virtual std::string print();
+    virtual AVMInstructionType getInstructionType() {
+        return AVMInstructionType::ARITHMETIC;
+    }
+
+    virtual std::string print() {
+        return {};
+    }
     AVMOpcode opcode = AVMOpcode::NOP;
 };
 
-std::string AVMInstruction::print() {
-    return std::string();
-}
-
-AVMInstructionType AVMInstruction::getInstructionType() {
-    return AVMInstructionType::ARITHMETIC;
-}
 
 class LoadMemoryInstruction : public AVMInstruction {
 public:
@@ -496,7 +428,7 @@ public:
     std::string dest{};
     std::string op1{};
     std::string op2{};
-    CMPCode compareCode = CMPCode::EQ;
+    CMPCode compareCode = CMPCode::NC;
     std::string print() override {
         std::string temp{};
         temp.append(dest);
@@ -537,7 +469,7 @@ public:
     std::string print() override {
         std::string temp{};
         temp.append(dest);
-        temp.append("= ");
+        temp.append(" = ");
         temp.append(mapOptoString(opcode));
         temp.append(" ");
         temp.append(src1);
@@ -548,6 +480,8 @@ public:
 private:
     AVMInstructionType type = AVMInstructionType::ARITHMETIC;
 };
+bool ASTopIsCMPOp(ASTop op);
+CMPCode toCMPCode(ASTop op);
 class CallInstruction : public AVMInstruction {
 public:
     AVMInstructionType getInstructionType() override {
@@ -559,7 +493,7 @@ public:
     std::string print() override {
         std::string temp{};
         temp.append(returnVal);
-        temp.append("= ");
+        temp.append(" = ");
         temp.append("CALL ");
         temp.append(funcName);
         temp.append(" (");
@@ -567,7 +501,7 @@ public:
             temp.append(i);
             temp.append(",");
         }
-        temp.erase(temp.end());
+        temp.erase(temp.end()-1);
         temp.append(")");
         return temp;
     }
@@ -594,6 +528,7 @@ private:
     AVMInstructionType type = AVMInstructionType::MV;
 };
 class BranchInstruction : public AVMInstruction {
+public:
     AVMInstructionType getInstructionType() override {
         return type;
     }
@@ -618,7 +553,9 @@ class CSELInstruction : public AVMInstruction {};
 
 class AVMBasicBlock {
 public:
+    ~AVMBasicBlock();
     std::vector<AVMInstruction*> sequenceOfInstructions;
+    std::string label;
     std::string print() {
         std::string temp{};
         for (auto* i : sequenceOfInstructions)
@@ -632,24 +569,29 @@ public:
 
 class AVMFunction {
 public:
+    ~AVMFunction();
     std::vector<Symbol*> incomingSymbols;
     std::vector<AVMBasicBlock*> basicBlocksInFunction;
     AdjacencyMatrix* adjacencyMatrix = nullptr;
 private:
 
 };
-
+struct AVMBasicBlocksForIFs {
+    AVMBasicBlock* truePath;
+    AVMBasicBlock* falsePath;
+};
 class AVM {
 public:
     explicit AVM(CParse &parserState);
-    ~AVM() = default;
+    ~AVM();
     AVMBasicBlock* currentBasicBlock = nullptr;
     CParse& parserState;
     std::vector<AVMFunction*> compilationUnit{};
     void AVMByteCodeDriver(FunctionAST* functionToBeTranslated);
-    AVMBasicBlock *cvtBasicBlockToAVMByteCode(ASTNode *node);
-
+    void cvtBasicBlockToAVMByteCode(ASTNode *node, AVMBasicBlock* basicBlock);
+    std::vector<Symbol*> globalSyms;
     AVMFunction* currentFunction = nullptr;
+    ASTNode* currentNode = nullptr;
     std::string genCode(ASTNode* expr);
     std::string genTmpDest() {
         std::string tmp = "%tmp.";
@@ -662,10 +604,21 @@ public:
         if (argNode == nullptr)
             return {};
         std::vector<std::string> temp;
-        temp.push_back(argNode->left->identifier);
+        if (argNode->op == A_GLUE)
+            temp.push_back(argNode->left->identifier);
+        else
+            temp.push_back(argNode->identifier);
         auto genArgs2 = genArgs(argNode->right);
         temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
         return temp;
     }
+    u64 labelCounter = 0;
+    std::string genLabel() {
+        std::string tmp = "@L.";
+        tmp.append(std::to_string(labelCounter));
+        labelCounter++;
+        return tmp;
+    }
+    AVMBasicBlocksForIFs* ifHandler(ASTNode* expr);
     u64 tmpCounter = 0;
 };

@@ -68,6 +68,16 @@ bool ASTopIsBinOp(ASTop op) {
             || op == A_XOR
             );
 }
+bool ASTopIsCMPOp(ASTop op) {
+    return (
+            op == A_LT
+            || op == A_LTEQ
+            || op == A_MT
+            || op == A_MTEQ
+            || op == A_EQ
+            || op == A_NEQ
+    );
+}
 void deleteVecOfPtrs(std::vector<CType*>* ptrs)
 {
     for (auto i : *ptrs)
@@ -257,8 +267,6 @@ bool CParse::parse()
             cursor++;
         }
     }
-    auto it = currentScope->rst.SymbolHashMap.find("j");
-    printf("%s, %d\n", it->first.c_str(), it->second);
     return true;
 }
 /*declaration_specifiers
@@ -496,6 +504,7 @@ ASTNode* CParse::selectionStatement() {
         auto* ASTGlue = new ASTNode;
         ASTNode::fillNode(rootNode, ifCond, ASTGlue, false, A_IFDECL, "");
         ASTNode::fillNode(ASTGlue, ifBody, elseNode, false, A_IFBODY, "");
+        return rootNode;
     }
     auto* ASTGlue = new ASTNode;
     ASTNode::fillNode(rootNode, ifCond, ASTGlue, false, A_IFDECL, "");
@@ -1190,7 +1199,6 @@ bool CParse::directDeclarator(std::vector<DeclaratorPieces *> *declPieces) {
                 auto* funcProto = parameterList();
                 declPieces->push_back(funcProto);
             }
-            cursor++;
         }
         return true;
     }
@@ -1236,6 +1244,7 @@ FunctionPrototype* CParse::parameterList() {
         {
             end = true;
         }
+        cursor++;
     }
     currentScope = currentScope->parent;
     funcProto->scope = scopeAST;
@@ -1492,4 +1501,14 @@ std::string CType::typeAsString() {
 
 std::string DeclaratorPieces::print() {
     return std::string();
+}
+
+AVMFunction::~AVMFunction() {
+    for (auto i : basicBlocksInFunction)
+        delete i;
+}
+
+AVMBasicBlock::~AVMBasicBlock() {
+    for (auto i : sequenceOfInstructions)
+        delete i;
 }
