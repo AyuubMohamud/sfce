@@ -39,7 +39,7 @@ void AVM::cvtBasicBlockToAVMByteCode(ASTNode* node, AVMBasicBlock* basicBlock) {
     AVMBasicBlock* previous = nullptr;
     previous = currentBasicBlock;
     currentBasicBlock = basicBlock;
-    genCode(node);
+    auto res = genCode(node);
     currentFunction->basicBlocksInFunction.push_back(basicBlock);
     ASTNode* cNode = nullptr;
     if (currentNode == nullptr)
@@ -51,10 +51,8 @@ void AVM::cvtBasicBlockToAVMByteCode(ASTNode* node, AVMBasicBlock* basicBlock) {
         {
             cNode = currentNode;
             currentNode = currentNode->right;
-            auto* ifStatements = ifHandler(cNode->left);
-            currentFunction->basicBlocksInFunction.push_back(ifStatements->truePath);
-            currentFunction->basicBlocksInFunction.push_back(ifStatements->falsePath);
-            delete ifStatements;
+            auto* ifblocks = ifHandler(cNode->left);
+            delete ifblocks;
             break;
         }
         default:
@@ -103,8 +101,8 @@ std::string AVM::genCode(ASTNode *expr) {
         {
             auto* dereference = new LoadMemoryInstruction;
             dereference->opcode = AVMOpcode::LD;
-            dereference->dest = genTmpDest();
             dereference->addrVar = genCode(expr->left);
+            dereference->dest = genTmpDest();
             currentBasicBlock->sequenceOfInstructions.push_back(dereference);
             return dereference->dest;
         }
@@ -112,8 +110,8 @@ std::string AVM::genCode(ASTNode *expr) {
         {
             auto* addressGeneration = new GetElementPtr;
             addressGeneration->opcode = AVMOpcode::GEP;
-            addressGeneration->dest = genTmpDest();
             addressGeneration->src = genCode(expr->left);
+            addressGeneration->dest = genTmpDest();
             currentBasicBlock->sequenceOfInstructions.push_back(addressGeneration);
             return addressGeneration->dest;
         }
@@ -124,9 +122,9 @@ std::string AVM::genCode(ASTNode *expr) {
         case A_INTLIT:
         {
             auto* movInstruction = new MoveInstruction;
-            movInstruction->dest = genTmpDest();
             movInstruction->valueToBeMoved = "#";
             movInstruction->valueToBeMoved.append(expr->identifier);
+            movInstruction->dest = genTmpDest();
             movInstruction->opcode = AVMOpcode::MV;
             currentBasicBlock->sequenceOfInstructions.push_back(movInstruction);
             return movInstruction->dest;
@@ -134,7 +132,11 @@ std::string AVM::genCode(ASTNode *expr) {
         case A_RET:
         {
             auto* retInstruction = new RetInstruction;
-            retInstruction->value = genCode(expr->left);
+            if (expr->left != nullptr)
+            {
+                retInstruction->value = genCode(expr->left);
+            }
+
             retInstruction->opcode = AVMOpcode::RET;
             currentBasicBlock->sequenceOfInstructions.push_back(retInstruction);
             return {};
@@ -164,10 +166,9 @@ std::string AVM::genCode(ASTNode *expr) {
         }
         case A_END:
         {
-            auto* nop = new ArithmeticInstruction;
-            nop->dest = "END";
-            currentBasicBlock->sequenceOfInstructions.push_back(nop);
-            return "END";
+            auto* programEnd = new ProgramEndInstruction;
+            currentBasicBlock->sequenceOfInstructions.push_back(programEnd);
+            return {};
         }
         case A_CS:
         {
@@ -182,9 +183,9 @@ std::string AVM::genCode(ASTNode *expr) {
         case A_MV:
         {
             auto* moveInstruction = new MoveInstruction;
-            moveInstruction->dest = genCode(expr->left);
             moveInstruction->valueToBeMoved = genCode(expr->right);
             moveInstruction->opcode = AVMOpcode::MV;
+            moveInstruction->dest = genCode(expr->left);
             currentBasicBlock->sequenceOfInstructions.push_back(moveInstruction);
             return {};
         }
@@ -193,21 +194,21 @@ std::string AVM::genCode(ASTNode *expr) {
             if (ASTopIsCMPOp(expr->op))
             {
                 auto* comparisonInstruction = new ComparisonInstruction;
-                comparisonInstruction->dest = genTmpDest();
                 comparisonInstruction->compareCode = toCMPCode(expr->op);
                 comparisonInstruction->op1 = genCode(expr->left);
                 comparisonInstruction->op2 = genCode(expr->right);
                 comparisonInstruction->opcode = AVMOpcode::CMP;
+                comparisonInstruction->dest = genTmpDest();
                 currentBasicBlock->sequenceOfInstructions.push_back(comparisonInstruction);
                 return comparisonInstruction->dest;
             }
             if (ASTopIsBinOp(expr->op))
             {
                 auto* arithmeticInstruction = new ArithmeticInstruction;
-                arithmeticInstruction->dest = genTmpDest();
                 arithmeticInstruction->src1 = genCode(expr->left);
                 arithmeticInstruction->src2 = genCode(expr->right);
                 arithmeticInstruction->opcode = toAVM(expr->op);
+                arithmeticInstruction->dest = genTmpDest();
                 currentBasicBlock->sequenceOfInstructions.push_back(arithmeticInstruction);
                 return arithmeticInstruction->dest;
             }
@@ -236,6 +237,7 @@ AVMBasicBlocksForIFs* AVM::ifHandler(ASTNode *expr) {
     branchInstruction->trueTarget = res->truePath->label;
     branchInstruction->falseTarget = res->falsePath->label;
     branchInstruction->dependantComparison = genCode(expr->left);
+    currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction);
     ASTNode* saveNode = currentNode;
     currentNode = nullptr;
     cvtBasicBlockToAVMByteCode(expr->right->left, res->truePath);

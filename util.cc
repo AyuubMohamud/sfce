@@ -2,25 +2,25 @@
 
 
 std::unordered_map<CMPCode, std::string> CMPtoString {
-        {CMPCode::LT, "LT"},
-        {CMPCode::MT, "MT"},
-        {CMPCode::LTEQ, "LTEQ"},
-        {CMPCode::MTEQ, "MTEQ"},
-        {CMPCode::EQ, "EQ"},
-        {CMPCode::NEQ, "NEQ"}
+        {CMPCode::LT, "lt"},
+        {CMPCode::MT, "mt"},
+        {CMPCode::LTEQ, "lteq"},
+        {CMPCode::MTEQ, "mteq"},
+        {CMPCode::EQ, "eq"},
+        {CMPCode::NEQ, "neq"}
 };
 std::unordered_map<AVMOpcode, std::string> OpcodeToString {
-        {AVMOpcode::ADD, "ADD"},
-        {AVMOpcode::SUB, "SUB"},
-        {AVMOpcode::MUL, "MUL"},
-        {AVMOpcode::DIV, "DIV"},
-        {AVMOpcode::MOD, "MOD"},
-        {AVMOpcode::SLL, "SLL"},
-        {AVMOpcode::ASR, "ASR"},
-        {AVMOpcode::SLR, "SLR"},
-        {AVMOpcode::AND, "AND"},
-        {AVMOpcode::XOR, "XOR"},
-        {AVMOpcode::ORR, "ORR"}
+        {AVMOpcode::ADD, "add"},
+        {AVMOpcode::SUB, "sub"},
+        {AVMOpcode::MUL, "mul"},
+        {AVMOpcode::DIV, "div"},
+        {AVMOpcode::MOD, "mod"},
+        {AVMOpcode::SLL, "sll"},
+        {AVMOpcode::ASR, "asr"},
+        {AVMOpcode::SLR, "slr"},
+        {AVMOpcode::AND, "and"},
+        {AVMOpcode::XOR, "xor"},
+        {AVMOpcode::ORR, "orr"}
 };
 std::unordered_map<ASTop, AVMOpcode> ASTOperationToAVM {
         {A_ADD, AVMOpcode::ADD},

@@ -44,13 +44,17 @@ int main(int argc, const char** argv)
         printf("%s, %llu\n", i.lexeme.c_str(), i.lineNumber);
     }
     CParse parser(result->TokenisedInput);
-    if (!parser.parse()) print_error("Error whilst parsing!");
+    if (!parser.parse()) {print_error("Error whilst parsing!"); delete lexer; return 1;}
 
     SemanticAnalyser analyser;
     bool success = analyser.startSemanticAnalysis(parser);
     if (success)
     {
         printf("Semantically OK translation unit, proceeding to produce code!\n");
+    }
+    else {
+        delete lexer;
+        return 1;
     }
 
     AVM abstractVirtualMachine(parser);

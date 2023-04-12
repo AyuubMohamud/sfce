@@ -395,6 +395,11 @@ ASTNode* CParse::blockItemList() {
      * (tokens->at(cursor).token != END && tokens->at(cursor).token != CLOSE_BRACE)*/
     if (tokens->at(cursor).token == CLOSE_BRACE)
     {
+        /*
+        auto* node = new ASTNode;
+        ASTNode::fillNode(node, nullptr, nullptr, false, A_END, "");
+        return node;
+         */
         auto* node = new ASTNode;
         ASTNode::fillNode(node, nullptr, nullptr, false, A_END, "");
         return node;
@@ -674,11 +679,12 @@ ASTNode* CParse::unaryExpression() {
         {
             ASTop op = isUnaryOperator(tokens->at(cursor));
             if (op != A_NOP) {
+                cursor++;
                 auto* node2 = castExpression();
                 if (node2 == nullptr) {return nullptr;}
                 auto* node = new ASTNode;
                 ASTNode::fillNode(node, node2, nullptr, true, op, "");
-                return nullptr;
+                return node;
             }
             return postfixExpression();
         }
@@ -1352,7 +1358,8 @@ i64 ScopeAST::findEarliestScopeLevel(i64 startVal, const std::string &identifier
 
 
 FunctionPrototype::~FunctionPrototype() {
-    delete scope;
+    if (!doNotDeleteScope)
+        delete scope;
 }
 
 std::string FunctionPrototype::print() {
@@ -1373,8 +1380,8 @@ void ASTNode::deleteNode(ASTNode *node) {
         return;
     deleteNode(node->left);
     deleteNode(node->right);
-
-    delete node->type;
+    if (!node->doNotDeleteType)
+        delete node->type;
     delete node->scope;
     delete node;
 }
@@ -1483,7 +1490,7 @@ bool CType::isEqual(CType *otherType, bool ptrOrNum) {
     int x = 0;
     while (equal && (x < declaratorPartList.size()))
     {
-        equal = (declaratorPartList.at(0) == otherType->declaratorPartList.at(0));
+        equal = (declaratorPartList.at(0)->getDPT() == otherType->declaratorPartList.at(0)->getDPT());
         x++;
     }
     return equal;
@@ -1497,6 +1504,81 @@ std::string CType::typeAsString() {
     }
 
     return type;
+}
+
+CType* CType::dereferenceType() {
+    if (!isPtr())
+        return nullptr;
+    auto* ctype = new CType;
+    int cursor = 0;
+    if (declaratorPartList.at(cursor)->getDPT() == D_IDENTIFIER)
+    {
+        cursor = 1;
+    }
+    copy(ctype);
+    auto* ptr = dynamic_cast<Pointer*>(ctype->declaratorPartList.at(cursor));
+    ctype->declaratorPartList.erase(ctype->declaratorPartList.cbegin()+cursor);
+    delete ptr;
+    return ctype;
+}
+
+CType *CType::refType() {
+    if (typeSpecifier.at(0).token == VOID)
+    {
+        return nullptr;
+    }
+    auto* ctype = new CType;
+    int cursor = 0;
+    if (declaratorPartList.at(cursor)->getDPT() == D_IDENTIFIER)
+    {
+        cursor = 1;
+    }
+    copy(ctype);
+    auto* pointer = new Pointer;
+    ctype->declaratorPartList.insert(ctype->declaratorPartList.cbegin()+cursor, pointer);
+    return ctype;
+}
+
+void CType::copy(CType* x) {
+    x->typeSpecifier = typeSpecifier;
+    for (auto* i : declaratorPartList)
+    {
+        switch (i->getDPT()) {
+            case PTR: {
+                auto* pointer = new Pointer;
+                Pointer pointer2 = *(dynamic_cast<Pointer*>(i));
+                if (pointer2.isConstPtr())
+                {
+                    pointer->setConst();
+                }
+                if (pointer2.isVolatilePtr())
+                {
+                    pointer->setVolatile();
+                }
+                x->declaratorPartList.push_back(pointer);
+                break;
+            }
+            case FUNC: {
+                auto* funcProto2 = new FunctionPrototype;
+                FunctionPrototype funcProto = *(dynamic_cast<FunctionPrototype*>(i));
+                funcProto2->scope = funcProto.scope;
+                funcProto2->types = funcProto.types;
+                funcProto2->doNotDeleteScope = true;
+                x->declaratorPartList.push_back(funcProto2);
+                break;
+            }
+            case ARR: {
+                break;
+            }
+            case D_IDENTIFIER: {
+                Identifier identifier = *(dynamic_cast<Identifier*>(i));
+                auto* newIdentifier =  new Identifier;
+                newIdentifier->identifier_name = identifier.identifier_name;
+                x->declaratorPartList.push_back(newIdentifier);
+                break;
+            }
+        }
+    }
 }
 
 std::string DeclaratorPieces::print() {

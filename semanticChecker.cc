@@ -27,19 +27,29 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
         }
         case A_RET: // check if return value makes sense
         {
+            bool deleteRetType = false;
             auto* returnExprType = evalType(parserState, node->left);
             if (returnExprType == nullptr)
             {
                 returnExprType = new CType;
                 returnExprType->typeSpecifier.push_back({.token = VOID});
+                deleteRetType = true;
             }
             i64 pos = scope->findRegularSymbol(currentFunction->funcIdentifier);
-            if (pos == -1) return true;
+            if (pos == -1) {
+                if (deleteRetType)
+                    delete returnExprType;
+                return true;
+            }
             if (returnExprType->isEqual(parserState.globalSymbolTable[pos]->type, !returnExprType->isPtr()))
             {
+                if (deleteRetType)
+                    delete returnExprType;
                 return false;
             }
             printf("Function %s does not have return type %s as indicated by return expression\n", currentFunction->funcIdentifier.c_str(), returnExprType->typeAsString().c_str());
+            if (deleteRetType)
+                delete returnExprType;
             return true;
         }
         case A_MV:
@@ -86,7 +96,7 @@ bool SemanticAnalyser::startSemanticAnalysis(CParse& parserState) {
     }
     return true;
 }
-CType* SemanticAnalyser::normaliseTypes(CType* LHS, CType* RHS)
+CType* SemanticAnalyser::normaliseTypes(CType* LHS, CType* RHS) const
 {
     if (RHS == nullptr || LHS == nullptr)
         return nullptr;
@@ -160,9 +170,25 @@ CType* SemanticAnalyser::evalType(CParse& parserState, ASTNode *expr) {
     {
         auto* typeUnary = evalType(parserState, expr->left);
         if (typeUnary->isPtr() || typeUnary->isFuncPtr())
-            return typeUnary;
+        {
+            auto* pCType = typeUnary->dereferenceType();
+            expr->type = pCType;
+            return pCType;
+        }
         print_error(0, currentFunction->funcIdentifier.c_str(), typeUnary->typeAsString().c_str());
         return nullptr;
+    }
+    if (expr->op == A_AGEN)
+    {
+        auto* typeUnary = evalType(parserState, expr->left);
+        if (typeUnary == nullptr)
+            return nullptr;
+        auto* refType = typeUnary->refType();
+        if (refType == nullptr) {
+            return nullptr;
+        }
+        expr->type = refType;
+        return refType;
     }
     if (expr->op == A_TYPE_CVT)
     {

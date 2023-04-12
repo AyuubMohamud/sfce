@@ -104,12 +104,15 @@ struct CType
     std::vector<DeclaratorPieces*> declaratorPartList;
     char bitfield = 0; // Used for unions, currently unsupported **TODO**
 
+    void copy(CType* x);
     bool isCompatible(CType type, ASTop op);
     bool isPtr();
     bool isArray();
     bool isNumVar();
     bool isFuncPtr();
     bool isEqual(CType* otherType, bool ptrOrNum);
+    CType* dereferenceType();
+    CType* refType();
     std::string typeAsString();
 
 private:
@@ -122,7 +125,7 @@ public:
     ~FunctionPrototype() override;
     DeclaratorPieceType getDPT() final {return dpt;};
     ScopeAST* scope = nullptr;
-
+    bool doNotDeleteScope = false;
     std::vector<Symbol*> types{};
     std::string print() override;
 private:
@@ -173,6 +176,7 @@ public:
     std::string identifier;
     CType* type = nullptr; // only usable if op = A_TYPE_CVT
     ScopeAST* scope = nullptr;
+    bool doNotDeleteType = false;
     static void print(ASTNode* node) {
         if (node == nullptr)
             return;
@@ -301,7 +305,7 @@ public:
 
     bool startSemanticAnalysis(CParse &parserState);
 
-    CType *normaliseTypes(CType *LHS, CType *RHS);
+    CType *normaliseTypes(CType *LHS, CType *RHS) const;
 };
 enum class AVMOpcode {
     // Arithmetic class
@@ -328,7 +332,8 @@ enum class AVMOpcode {
     CALL,
     // Miscellaneous
     MV,
-    NOP
+    NOP,
+    PROGEND
 };
 enum class CMPCode {
     LT,
@@ -349,7 +354,8 @@ enum class AVMInstructionType {
     BRANCH,
     CALL,
     RET,
-    MV
+    MV,
+    END
 };
 std::string mapOptoString(AVMOpcode op);
 std::string mapConditionCodetoString(CMPCode code);
@@ -377,8 +383,9 @@ public:
     std::string addrVar{};
     std::string print() override {
         std::string temp{};
+        temp.append("ldr ");
         temp.append(dest);
-        temp.append(" = LOAD");
+        temp.append(",");
         temp.append(addrVar);
         return temp;
     }
@@ -394,9 +401,9 @@ public:
     std::string addrVar{};
     std::string print() override {
         std::string temp{};
-        temp.append("STORE ");
+        temp.append("str ");
         temp.append(src);
-        temp.append(" , ");
+        temp.append(",");
         temp.append(addrVar);
         return temp;
     }
@@ -412,8 +419,9 @@ public:
     std::string src{};
     std::string print() override {
         std::string temp{};
+        temp.append("gep ");
         temp.append(dest);
-        temp.append(" = GEP ");
+        temp.append(",");
         temp.append(src);
         return temp;
     }
@@ -431,12 +439,13 @@ public:
     CMPCode compareCode = CMPCode::NC;
     std::string print() override {
         std::string temp{};
-        temp.append(dest);
-        temp.append("= CMP ");
+        temp.append("cmp.");
         temp.append(mapConditionCodetoString(compareCode));
         temp.append(" ");
+        temp.append(dest);
+        temp.append(",");
         temp.append(op1);
-        temp.append(" , ");
+        temp.append(",");
         temp.append(op2);
         return temp;
     }
@@ -451,7 +460,7 @@ public:
     std::string value{};
     std::string print() override {
         std::string temp{};
-        temp.append("RET ");
+        temp.append("ret ");
         temp.append(value);
         return temp;
     }
@@ -468,12 +477,12 @@ public:
     std::string src2{};
     std::string print() override {
         std::string temp{};
-        temp.append(dest);
-        temp.append(" = ");
         temp.append(mapOptoString(opcode));
         temp.append(" ");
+        temp.append(dest);
+        temp.append(",");
         temp.append(src1);
-        temp.append(" , ");
+        temp.append(",");
         temp.append(src2);
         return temp;
     }
@@ -494,9 +503,9 @@ public:
         std::string temp{};
         temp.append(returnVal);
         temp.append(" = ");
-        temp.append("CALL ");
+        temp.append("call ");
         temp.append(funcName);
-        temp.append(" (");
+        temp.append("(");
         for (auto& i : args) {
             temp.append(i);
             temp.append(",");
@@ -519,8 +528,9 @@ public:
     std::string print() override
     {
         std::string temp{};
+        temp.append("mov ");
         temp.append(dest);
-        temp.append(" = MV ");
+        temp.append(",");
         temp.append(valueToBeMoved);
         return temp;
     }
@@ -538,7 +548,7 @@ public:
     std::string print() override
     {
         std::string temp{};
-        temp.append("BR ");
+        temp.append("br ");
         temp.append(dependantComparison);
         temp.append(" true: ");
         temp.append(trueTarget);
@@ -549,6 +559,21 @@ public:
 private:
     AVMInstructionType type = AVMInstructionType::BRANCH;
 };
+class ProgramEndInstruction : public AVMInstruction
+{
+public:
+    AVMInstructionType getInstructionType() override {
+        return type;
+    }
+    std::string print() override
+    {
+        std::string temp{};
+        temp.append("end");
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::END;
+};
 class CSELInstruction : public AVMInstruction {};
 
 class AVMBasicBlock {
@@ -558,11 +583,14 @@ public:
     std::string label;
     std::string print() {
         std::string temp{};
+        temp.append("\t");
         for (auto* i : sequenceOfInstructions)
         {
             temp.append(i->print());
             temp.append("\n");
+            temp.append("\t");
         }
+        temp.erase(temp.end()-1);
         return temp;
     }
 };
