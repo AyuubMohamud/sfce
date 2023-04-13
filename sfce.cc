@@ -19,6 +19,7 @@ void version()
 }
 int main(int argc, const char** argv)
 {
+
     if (argc < 2)
     {
         print_error("SCFE called with no arguments!");
@@ -38,7 +39,11 @@ int main(int argc, const char** argv)
     auto* lexer = new Lexer(argv[1]);
 
     LexerResult* result = lexer->lexer();
-
+    if (result->returnCode == SBCCCode::FileNotPresent)
+    {
+        delete lexer;
+        return 1;
+    }
     for (auto& i : *result->TokenisedInput)
     {
         printf("%s, %llu\n", i.lexeme.c_str(), i.lineNumber);

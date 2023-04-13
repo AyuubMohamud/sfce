@@ -899,9 +899,10 @@ ASTNode* CParse::conditionalExpression() {
  	| '(' type_name ')' cast_expression
  	;*/
 ASTNode* CParse::castExpression() {
-    auto* node = unaryExpression();
-    if (!node)
+    if (isTypeSpecifier(tokens->at(cursor+1)))
     {
+        ASTNode* node = new ASTNode;
+        cursor++;
         auto* rootNode = new ASTNode;
         if (tokens->at(cursor).token != OPEN_PARENTHESES) { delete node; return nullptr; }
         auto* type = new CType;
@@ -914,8 +915,10 @@ ASTNode* CParse::castExpression() {
         auto* node2 = castExpression();
         ASTNode::fillNode(rootNode, node1, node2, false, A_TYPE_CVT, "");
         node = rootNode;
+        return node;
     }
-    return node;
+    return unaryExpression();
+    
 }
 
 std::vector<DeclaratorPieces*>* CParse::abstractDeclarator() {
@@ -1449,12 +1452,12 @@ bool CType::isFuncPtr() {
             return false;
     }
 
-    if (declaratorPartList.at(cursor)->getDPT() == FUNC)
+    if (declaratorPartList.at(cursor)->getDPT() == PTR)
     {
         if (declaratorPartList.size() == cursor+1)
             return false;
 
-        if (declaratorPartList.at(cursor+1)->getDPT() == PTR)
+        if (declaratorPartList.at(cursor+1)->getDPT() == FUNC)
         {
             return true;
         }
