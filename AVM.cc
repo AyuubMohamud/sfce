@@ -8,33 +8,26 @@
  *
  * */
 
+
+
+
+
+
+
 void AVM::AVMByteCodeDriver(FunctionAST* functionToBeTranslated) {
     auto* function = new AVMFunction;
     auto* funcSymbol = parserState.globalSymbolTable[functionToBeTranslated->globalSymTableIdx];
     auto* prototype = dynamic_cast<FunctionPrototype*>(funcSymbol->type->declaratorPartList[1]);
+    function->prototype = prototype;
     currentFunction = function;
     for (auto* i : prototype->types)
         currentFunction->incomingSymbols.push_back(i);
-    std::string label = "entry";
-    bool done = false;
-    ASTNode* node = functionToBeTranslated->root;
-    do {
-        currentNode = nullptr;
-        auto* basicBlock = new AVMBasicBlock;
-        basicBlock->label = label;
-        cvtBasicBlockToAVMByteCode(node, basicBlock);
-        if (currentNode == nullptr)
-        {
-            done = true;
-        }
-        else {
-            node = currentNode;
-        }
-        label = genLabel();
-    } while (!done);
+    label = "entry";
+    function->name = functionToBeTranslated->funcIdentifier;
+    startBasicBlockConversion(functionToBeTranslated->root);
     compilationUnit.push_back(function);
 }
-
+/*
 void AVM::cvtBasicBlockToAVMByteCode(ASTNode* node, AVMBasicBlock* basicBlock) {
     AVMBasicBlock* previous = nullptr;
     previous = currentBasicBlock;
@@ -60,8 +53,15 @@ void AVM::cvtBasicBlockToAVMByteCode(ASTNode* node, AVMBasicBlock* basicBlock) {
     }
     currentBasicBlock = previous;
 }
+*/
+void AVM::startBasicBlockConversion(ASTNode* node) {
+    auto* entryBasicBlock = new AVMBasicBlock;
+    entryBasicBlock->label = "entry";
+    currentFunction->basicBlocksInFunction.push_back(entryBasicBlock);
+    currentBasicBlock = entryBasicBlock;
 
-
+    genCode(node);
+}
 std::string AVM::genCode(ASTNode *expr) {
     switch (expr->op) {
         case A_INC:
@@ -117,7 +117,23 @@ std::string AVM::genCode(ASTNode *expr) {
         }
         case A_IDENT:
         {
+            bool found = false;
+            for (auto it : globalSyms)
+            {
+                if (expr->identifier == it->identifier) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found)
+            {
+                std::string temp;
+                temp.append("@");
+                temp.append(expr->identifier);
+                return temp;
+            }
             return expr->identifier;
+
         }
         case A_INTLIT:
         {
@@ -154,31 +170,34 @@ std::string AVM::genCode(ASTNode *expr) {
         }
         case A_GLUE:
         {
-            if (expr->left->op == A_IFDECL)
+            auto string = genCode(expr->left);
+            if (string == "NBB")
             {
-                currentNode = expr;
+                newBasicBlockHandler(expr->left, expr->right, false);
                 return {};
             }
-            genCode(expr->left);
             genCode(expr->right);
             // Since its glue they are not connected, simply ignore their values
             return {};
         }
+        /*
         case A_END:
         {
             auto* programEnd = new ProgramEndInstruction;
             currentBasicBlock->sequenceOfInstructions.push_back(programEnd);
             return {};
         }
+         */
         case A_CS:
         {
-            if (expr->left->op == A_IFDECL)
+            for (const auto& it : expr->scope->rst.SymbolHashMap)
             {
-                currentNode = expr;
-                return {};
+                currentFunction->variablesInFunction.push_back(parserState.globalSymbolTable.at(it.second));
+                auto* allocaInstruction = new AllocaInstruction;
+                allocaInstruction->target = it.first;
+                currentBasicBlock->sequenceOfInstructions.push_back(allocaInstruction);
             }
-            genCode(expr->left);
-            return {};
+            return genCode(expr->left);
         }
         case A_MV:
         {
@@ -188,6 +207,12 @@ std::string AVM::genCode(ASTNode *expr) {
             moveInstruction->dest = genCode(expr->left);
             currentBasicBlock->sequenceOfInstructions.push_back(moveInstruction);
             return {};
+        }
+        case A_IFDECL:
+        case A_WHILEBODY:
+        case A_FORDECL:
+        {
+            return "NBB";
         }
         default:
         {
@@ -218,34 +243,52 @@ std::string AVM::genCode(ASTNode *expr) {
     }
     return {};
 }
-AVMBasicBlocksForIFs* AVM::ifHandler(ASTNode *expr) {
-    auto* res = new AVMBasicBlocksForIFs;
-    auto* truePath = new AVMBasicBlock; res->truePath = truePath;   res->truePath->label = genLabel();
-    if (toCMPCode(expr->left->op) == CMPCode::NC)
-    {
-        auto* branchInstruction = new BranchInstruction;
-        branchInstruction->trueTarget = res->truePath->label;
-        branchInstruction->falseTarget = "NULL";
-        branchInstruction->dependantComparison = "#1";
-        cvtBasicBlockToAVMByteCode(expr->right->left, res->truePath);
-        return res;
-    }
-    auto* falsePath = new AVMBasicBlock;
-    res->falsePath = falsePath;
-    res->falsePath->label = genLabel();
+/*
+void AVM::ifHandler(ASTNode *ifDecl, ASTNode* continuation) {
+    auto* trueBasicBlock = new AVMBasicBlock;
     auto* branchInstruction = new BranchInstruction;
-    branchInstruction->trueTarget = res->truePath->label;
-    branchInstruction->falseTarget = res->falsePath->label;
-    branchInstruction->dependantComparison = genCode(expr->left);
+    branchInstruction->dependantComparison = genCode(ifDecl->left);
+    branchInstruction->opcode = AVMOpcode::BR;
+    branchInstruction->trueTarget = genLabel();
+    trueBasicBlock->label = branchInstruction->trueTarget;
     currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction);
-    ASTNode* saveNode = currentNode;
-    currentNode = nullptr;
-    cvtBasicBlockToAVMByteCode(expr->right->left, res->truePath);
-    cvtBasicBlockToAVMByteCode(expr->right->right, res->falsePath);
-    currentNode = saveNode;
-    return res;
+    AVMBasicBlock* currentPath = currentBasicBlock;
+    currentBasicBlock = trueBasicBlock;
+    auto string = genCode(ifDecl->right->left);
+    currentFunction->basicBlocksInFunction.push_back(currentBasicBlock);
+    if (string == "IF") // this is the result of a nested if statement
+    {
+        ifHandler(ifDecl->right->left, ifDecl->right->right);
+    }
+    branchInstruction->falseTarget = genLabel();
+    auto* falseBasicBlock = new AVMBasicBlock;
+    falseBasicBlock->label = branchInstruction->falseTarget;
+    currentBasicBlock = falseBasicBlock;
+    if (ifDecl->right->right != nullptr)
+    {
+        string = genCode(ifDecl->right->right);
+        currentFunction->basicBlocksInFunction.push_back(currentBasicBlock);
+        if (string == "IF") // this is the result of a nested if statement
+        {
+            ifHandler(ifDecl->right->right, nullptr);
+        }
+    }
+    if (continuation == nullptr)
+        return;
+    auto* continuationBasicBlock = new AVMBasicBlock;
+    auto* jmpToContinuationBasicBlock = new BranchInstruction;
+    jmpToContinuationBasicBlock->falseTarget = "NULL";
+    jmpToContinuationBasicBlock->opcode = AVMOpcode::BR;
+    jmpToContinuationBasicBlock->dependantComparison = "#1";
+    jmpToContinuationBasicBlock->trueTarget = genLabel();
+    continuationBasicBlock->label = jmpToContinuationBasicBlock->trueTarget;
+    currentBasicBlock = continuationBasicBlock;
+    genCode(continuation);
+    currentFunction->basicBlocksInFunction.push_back(continuationBasicBlock);
+    trueBasicBlock->sequenceOfInstructions.push_back(jmpToContinuationBasicBlock);
+    falseBasicBlock->sequenceOfInstructions.push_back(jmpToContinuationBasicBlock);
 }
-
+*/
 
 
 AVM::AVM(CParse &parserState) : parserState(parserState) {
@@ -260,4 +303,103 @@ AVM::~AVM() {
         delete i;
 }
 
+std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *nextBasicBlock, bool nested) {
+    switch (node->op) {
+        case A_IFDECL:
+        {
+            auto* branchInstruction = new BranchInstruction;
+            branchInstruction->dependantComparison = genCode(node->left);
+            branchInstruction->opcode = AVMOpcode::BR;
+            branchInstruction->trueTarget = genLabel();
+            branchInstruction->falseTarget = genLabel();
+            currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction);
 
+            // Done with previous basic block
+            auto* trueBasicBlock = new AVMBasicBlock;
+            auto* falseBasicBlock = new AVMBasicBlock;
+            trueBasicBlock->label = branchInstruction->trueTarget;
+            falseBasicBlock->label = branchInstruction->falseTarget;
+            currentFunction->basicBlocksInFunction.push_back(trueBasicBlock);
+            currentFunction->basicBlocksInFunction.push_back(falseBasicBlock);
+
+            currentBasicBlock = trueBasicBlock;
+            auto string = genCode(node->right->left->op == A_CS ? node->right->left->left : node->right->left);
+            std::vector<AVMBasicBlock*> basicBlocks;
+            if (string == "NBB")
+            {
+                basicBlocks = newBasicBlockHandler(node->right->left->op == A_CS ? node->right->left->left : node->right->left, nullptr, true);
+            }
+            string = "";
+
+            currentBasicBlock = falseBasicBlock;
+            if (node->right->right != nullptr)
+                string = genCode(node->right->right->op == A_CS ? node->right->right->left : node->right->right);
+            std::vector<AVMBasicBlock*> basicBlocks2;
+            if (string == "NBB")
+                basicBlocks2 = newBasicBlockHandler(node->right->right->op == A_CS ? node->right->right->left : node->right->right, nullptr, true);
+
+            basicBlocks.insert(basicBlocks.end(), basicBlocks2.begin(), basicBlocks2.end());
+
+            if (nested || (nextBasicBlock == nullptr)) {
+                basicBlocks.push_back(trueBasicBlock);
+                basicBlocks.push_back(falseBasicBlock);
+                return basicBlocks;
+            }
+
+            auto* continuation = new AVMBasicBlock;
+            continuation->label = genLabel();
+            currentBasicBlock = continuation;
+            genCode(nextBasicBlock);
+
+            for (auto it : basicBlocks)
+            {
+                auto* secondBranchInstruction = new BranchInstruction;
+                secondBranchInstruction->opcode = AVMOpcode::BR;
+                secondBranchInstruction->dependantComparison = "#1";
+                secondBranchInstruction->falseTarget = "NULL";
+                secondBranchInstruction->trueTarget = continuation->label;
+                it->sequenceOfInstructions.push_back(secondBranchInstruction);
+            }
+            if (trueBasicBlock->sequenceOfInstructions.empty())
+            {
+                auto* secondBranchInstruction = new BranchInstruction;
+                secondBranchInstruction->opcode = AVMOpcode::BR;
+                secondBranchInstruction->dependantComparison = "#1";
+                secondBranchInstruction->falseTarget = "NULL";
+                secondBranchInstruction->trueTarget = continuation->label;
+                trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
+            }
+            else if (trueBasicBlock->sequenceOfInstructions.at(trueBasicBlock->sequenceOfInstructions.size()-1)->getInstructionType() != AVMInstructionType::BRANCH) {
+                auto* secondBranchInstruction = new BranchInstruction;
+                secondBranchInstruction->opcode = AVMOpcode::BR;
+                secondBranchInstruction->dependantComparison = "#1";
+                secondBranchInstruction->falseTarget = "NULL";
+                secondBranchInstruction->trueTarget = continuation->label;
+                trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
+            }
+            if (falseBasicBlock->sequenceOfInstructions.empty())
+            {
+                auto* secondBranchInstruction = new BranchInstruction;
+                secondBranchInstruction->opcode = AVMOpcode::BR;
+                secondBranchInstruction->dependantComparison = "#1";
+                secondBranchInstruction->falseTarget = "NULL";
+                secondBranchInstruction->trueTarget = continuation->label;
+                falseBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
+            }
+            else if (falseBasicBlock->sequenceOfInstructions.at(falseBasicBlock->sequenceOfInstructions.size()-1)->getInstructionType() != AVMInstructionType::BRANCH) {
+                auto* secondBranchInstruction = new BranchInstruction;
+                secondBranchInstruction->opcode = AVMOpcode::BR;
+                secondBranchInstruction->dependantComparison = "#1";
+                secondBranchInstruction->falseTarget = "NULL";
+                secondBranchInstruction->trueTarget = continuation->label;
+                falseBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
+            }
+            currentFunction->basicBlocksInFunction.push_back(continuation);
+            return {};
+        }
+        default:
+        {
+            return {};
+        }
+    }
+}

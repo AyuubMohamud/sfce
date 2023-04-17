@@ -97,13 +97,14 @@ private:
 struct CType
 {
     ~CType() {
-        for (auto* i : declaratorPartList)
-            delete i;
+        if (!isCopy)
+            for (auto* i : declaratorPartList)
+                delete i;
     };
     std::vector<Token> typeSpecifier;
     std::vector<DeclaratorPieces*> declaratorPartList;
     char bitfield = 0; // Used for unions, currently unsupported **TODO**
-
+    bool isCopy = false;
     void copy(CType* x);
     bool isCompatible(CType type, ASTop op);
     bool isPtr();
@@ -111,6 +112,7 @@ struct CType
     bool isNumVar();
     bool isFuncPtr();
     bool isEqual(CType* otherType, bool ptrOrNum);
+    bool isStatic();
     CType* dereferenceType();
     CType* refType();
     std::string typeAsString();
@@ -214,11 +216,23 @@ int sizeOf(std::vector<Token>& typeSpecifiers);
 class FunctionAST
 {
 public:
-    explicit FunctionAST(const std::string& identifier)
+    explicit FunctionAST(CType* type, const std::string& identifier)
     {
         funcIdentifier = identifier;
-    }; // append parameter list from FunctionParameter type + extract return type
-    ~FunctionAST() = default;
+        returnType = new CType;
+
+        returnType->typeSpecifier = type->typeSpecifier;
+        returnType->declaratorPartList.push_back(type->declaratorPartList.at(0));
+        for (int i = 2; i < type->declaratorPartList.size(); i++)
+        {
+            returnType->declaratorPartList.push_back(type->declaratorPartList.at(i));
+        }
+        returnType->isCopy=true;
+
+    };// append parameter list from FunctionParameter type + extract return type
+    ~FunctionAST() {
+        delete returnType;
+    };
     ASTNode* root = nullptr;
     void printFunction() const {
         ASTNode::print(root);
@@ -227,7 +241,11 @@ public:
     bool funcDeclInFile = false;
     std::string funcIdentifier;
     u32 globalSymTableIdx = 0;
-
+    CType* funcType() {
+        return returnType;
+    }
+private:
+    CType* returnType = nullptr;
 };
 
 class CParse
@@ -306,6 +324,19 @@ public:
     bool startSemanticAnalysis(CParse &parserState);
 
     CType *normaliseTypes(CType *LHS, CType *RHS) const;
+    std::vector<std::string> genArgs(ASTNode* argNode)
+    {
+        if (argNode == nullptr)
+            return {};
+        std::vector<std::string> temp;
+        if (argNode->op == A_GLUE)
+            temp.push_back(argNode->left->identifier);
+        else
+            temp.push_back(argNode->identifier);
+        auto genArgs2 = genArgs(argNode->right);
+        temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
+        return temp;
+    }
 };
 enum class AVMOpcode {
     // Arithmetic class
@@ -324,6 +355,7 @@ enum class AVMOpcode {
     GEP,
     LD,
     ST,
+    ALLOCA,
     // Control Flow class
     CMP,
     CSEL,
@@ -355,6 +387,7 @@ enum class AVMInstructionType {
     CALL,
     RET,
     MV,
+    ALLOCA,
     END
 };
 std::string mapOptoString(AVMOpcode op);
@@ -443,9 +476,9 @@ public:
         temp.append(mapConditionCodetoString(compareCode));
         temp.append(" ");
         temp.append(dest);
-        temp.append(",");
+        temp.append(", ");
         temp.append(op1);
-        temp.append(",");
+        temp.append(", ");
         temp.append(op2);
         return temp;
     }
@@ -480,9 +513,9 @@ public:
         temp.append(mapOptoString(opcode));
         temp.append(" ");
         temp.append(dest);
-        temp.append(",");
+        temp.append(", ");
         temp.append(src1);
-        temp.append(",");
+        temp.append(", ");
         temp.append(src2);
         return temp;
     }
@@ -530,7 +563,7 @@ public:
         std::string temp{};
         temp.append("mov ");
         temp.append(dest);
-        temp.append(",");
+        temp.append(", ");
         temp.append(valueToBeMoved);
         return temp;
     }
@@ -574,6 +607,19 @@ public:
 private:
     AVMInstructionType type = AVMInstructionType::END;
 };
+class AllocaInstruction : public AVMInstruction {
+public:
+    std::string target{};
+    std::string print() override
+    {
+        std::string temp{};
+        temp.append("alloca ");
+        temp.append(target);
+        return temp;
+    }
+private:
+    AVMInstructionType type = AVMInstructionType::ALLOCA;
+};
 class CSELInstruction : public AVMInstruction {};
 
 class AVMBasicBlock {
@@ -600,14 +646,14 @@ public:
     ~AVMFunction();
     std::vector<Symbol*> incomingSymbols;
     std::vector<AVMBasicBlock*> basicBlocksInFunction;
+    std::vector<Symbol*> variablesInFunction;
+    std::string name;
     AdjacencyMatrix* adjacencyMatrix = nullptr;
+    FunctionPrototype* prototype = nullptr;
 private:
 
 };
-struct AVMBasicBlocksForIFs {
-    AVMBasicBlock* truePath;
-    AVMBasicBlock* falsePath;
-};
+
 class AVM {
 public:
     explicit AVM(CParse &parserState);
@@ -620,13 +666,8 @@ public:
     std::vector<Symbol*> globalSyms;
     AVMFunction* currentFunction = nullptr;
     ASTNode* currentNode = nullptr;
+    std::string label = "entry";
     std::string genCode(ASTNode* expr);
-    std::string genTmpDest() {
-        std::string tmp = "%tmp.";
-        tmp.append(std::to_string(tmpCounter));
-        tmpCounter++;
-        return tmp;
-    }
     std::vector<std::string> genArgs(ASTNode* argNode)
     {
         if (argNode == nullptr)
@@ -647,6 +688,18 @@ public:
         labelCounter++;
         return tmp;
     }
-    AVMBasicBlocksForIFs* ifHandler(ASTNode* expr);
     u64 tmpCounter = 0;
+    std::string genTmpDest() {
+        std::string tmp = "%tmp.";
+        tmp.append(std::to_string(tmpCounter));
+        tmpCounter++;
+        return tmp;
+    }
+
+    void startBasicBlockConversion(ASTNode *node);
+
+    void ifHandler(ASTNode *ifDecl, ASTNode *continuation);
+
+
+    std::vector<AVMBasicBlock *> newBasicBlockHandler(ASTNode *node, ASTNode *nextBasicBlock, bool nested);
 };

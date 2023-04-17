@@ -110,7 +110,7 @@ public:
 struct LexerResult
 {
     std::vector<Token>* TokenisedInput;
-    SBCCCode returnCode;
+    SBCCCode returnCode = SBCCCode::OK;
 };
 
 class Lexer

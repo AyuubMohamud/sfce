@@ -25,6 +25,39 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
                 return false;
             }
         }
+        case A_CALL:
+        {
+            i64 pos = scope->findRegularSymbol(node->left->identifier);
+            if (pos == -1)
+                return true;
+            auto* funcSym = parserState.globalSymbolTable.at(pos);
+            if (funcSym->type->isPtr() || funcSym->type->isNumVar())
+                return true;
+
+            std::vector<std::string> arguments = genArgs(node->right);
+            auto* calleePrototype = dynamic_cast<FunctionPrototype*>(funcSym->type->declaratorPartList.at(1));
+            if (arguments.size() != calleePrototype->types.size())
+                return true;
+            std::vector<Symbol*> syms;
+            for (const auto& it : arguments)
+            {
+                pos = scope->findRegularSymbol(it);
+                if (pos == -1)
+                    return true;
+                syms.push_back(parserState.globalSymbolTable.at(pos));
+            }
+            bool error = false;
+            for (auto i = 0; i < syms.size(); i++)
+            {
+                auto* symbol1 = syms.at(i);
+                auto* symbol2 = calleePrototype->types.at(i);
+                bool ok = symbol1->type->isEqual(symbol2->type, !symbol1->type->isPtr());
+                if (!ok)
+                    return true;
+            }
+            return false;
+        }
+
         case A_RET: // check if return value makes sense
         {
             bool deleteRetType = false;
@@ -41,7 +74,7 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
                     delete returnExprType;
                 return true;
             }
-            if (returnExprType->isEqual(parserState.globalSymbolTable[pos]->type, !returnExprType->isPtr()))
+            if (returnExprType->isEqual(currentFunction->funcType(), !returnExprType->isPtr()))
             {
                 if (deleteRetType)
                     delete returnExprType;
@@ -75,6 +108,10 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
         }
         default:
         {
+            if (ASTopIsBinOp(node->op))
+            {
+                print_warning(0, currentFunction->funcIdentifier.c_str(), ErrorType::USELESS_EXPRESSION);
+            }
         }
     }
     return false;
@@ -117,7 +154,14 @@ CType* SemanticAnalyser::normaliseTypes(CType* LHS, CType* RHS) const
         {
             return LHS;
         }
+        if (LHS->isPtr()) {
+            if (RHS->declaratorPartList.empty()) // means it is an integer literal
+            {
+                return LHS;
+            }
+        }
         else {
+
             std::string typeLHS = LHS->typeAsString();
             std::string typeRHS = RHS->typeAsString();
             print_error(0, currentFunction->funcIdentifier.c_str(), typeLHS.c_str(), typeRHS.c_str());
@@ -138,7 +182,7 @@ CType* SemanticAnalyser::evalType(CParse& parserState, ASTNode *expr) {
     {
         auto* typeRHS = evalType(parserState, expr->right);
         auto* typeLHS = evalType(parserState, expr->left);
-        return normaliseTypes(typeRHS, typeLHS);
+        return normaliseTypes(typeLHS, typeRHS);
     }
     if (expr->op == A_INTLIT)
     {

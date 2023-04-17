@@ -1,5 +1,6 @@
 #include <sfce.hh>
 #include <errorHandler.hh>
+#include <unordered_map>
 const char* warningTypes[] = {
         "-Wuseless-expression",
         "-Wuninitialised-variable",
@@ -21,6 +22,12 @@ const char* errorTypes[] = {
         "Incompatible types",
         "Expected ; after expression"
 };
+
+std::unordered_map<ErrorType, const char*> warningMap {
+        {ErrorType::USELESS_EXPRESSION, "Useless expression"}
+};
+
+
 void print_error(unsigned long long line, const char* string)
 {
     printf(ANSI_COLOR_RED);
@@ -56,14 +63,18 @@ void debug_print(const char* message)
 #endif
 }
 
-void print_warning(unsigned long long line, const char* string, const char* funcName, i8 errorNum)
+void print_warning(unsigned long long line, const char* funcName, ErrorType type)
 {
     printf("In function %s, line %llu\n", funcName, line);
     printf(ANSI_COLOR_MAGENTA);
-    printf("Warning:");
+    printf("Warning: ");
     printf(ANSI_COLOR_RESET);
-    int x = errorNum > 4 ? 0 : errorNum;
-    printf("%s\n", warningTypes[x]);
+    auto it = warningMap.find(type);
+    if ( it == warningMap.end())
+    {
+        return;
+    }
+    printf("%s\n", it->second);
 }
 
 void print_error(unsigned long long line, const char* funcName, const char* type1, const char* type2)

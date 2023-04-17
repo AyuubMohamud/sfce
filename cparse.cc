@@ -245,7 +245,7 @@ bool CParse::parse()
         if (tokens->at(cursor).token != SEMICOLON)
         {
             if (tokens->at(cursor).token == OPEN_BRACE) {
-                auto* function = new FunctionAST(identifier);
+                auto* function = new FunctionAST(type, identifier);
                 currentFunction = function;
                 function->globalSymTableIdx = currentScope->findSymbolInLocalScope(function->funcIdentifier);
                 dynamic_cast<FunctionPrototype*>(globalSymbolTable[function->globalSymTableIdx]->type->declaratorPartList.at(1))->scope->parent = currentScope;
@@ -495,6 +495,7 @@ ASTNode* CParse::selectionStatement() {
         delete ifCond;
         return nullptr;
     }
+    //cursor++;
     if (tokens->at(cursor).token == ELSE)
     {
         cursor++;
@@ -1483,18 +1484,27 @@ bool CType::isEqual(CType *otherType, bool ptrOrNum) {
 
     if (token.token == token2.token && ptrOrNum)
         return true;
-    if (token.token != token2.token)
-        return false; // File will not be compiled if ptrOrNum is false and this condition occurs
+    if (token.token != token2.token && ptrOrNum) {
+        return true;
+    }
 
-    if (otherType->declaratorPartList.size() != declaratorPartList.size())
+    if (token.token != token2.token && !ptrOrNum) {
         return false;
+    }
+
+    //if (otherType->declaratorPartList.size() != declaratorPartList.size())
+    //    return false;
+
+
 
     bool equal = true;
-    int x = 0;
-    while (equal && (x < declaratorPartList.size()))
+    int x = otherType->declaratorPartList.at(0)->getDPT() == D_IDENTIFIER ? 1 : 0;
+    int y = declaratorPartList.at(0)->getDPT() == D_IDENTIFIER ? 1 : 0;
+    while (equal && (y < declaratorPartList.size()) && (x < otherType->declaratorPartList.size()))
     {
-        equal = (declaratorPartList.at(0)->getDPT() == otherType->declaratorPartList.at(0)->getDPT());
+        equal = (declaratorPartList.at(y)->getDPT() == otherType->declaratorPartList.at(x)->getDPT());
         x++;
+        y++;
     }
     return equal;
 }
@@ -1581,6 +1591,14 @@ void CType::copy(CType* x) {
                 break;
             }
         }
+    }
+}
+
+bool CType::isStatic() {
+    bool found = false;
+    for (const auto& i : typeSpecifier) {
+        if (i.token == STATIC)
+            return true;
     }
 }
 

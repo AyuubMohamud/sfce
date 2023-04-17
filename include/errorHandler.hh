@@ -7,13 +7,18 @@
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
+
+enum class ErrorType {
+    USELESS_EXPRESSION
+};
+
 void print_error(const char* string);
 
 void print_error(unsigned long long line, const char* string);
 
 void print_note(unsigned long long line, const char* string);
 
-void print_warning(unsigned long long line, const char* string);
+void print_warning(unsigned long long line, const char* funcName, ErrorType errorNum);
 
 void print_error(unsigned long long line, const char* funcName, const char* type1, const char* type2);
 void print_error(unsigned long long line, const char* funcName, const char* type1);

@@ -3,6 +3,7 @@
 #include <errorHandler.hh>
 #include <lexer.hh>
 #include <cparse.hh>
+#include <codeGen.hh>
 
 #define ANSI_COLOR_BLUE    "\x1b[34m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
@@ -19,8 +20,7 @@ void version()
 }
 int main(int argc, const char** argv)
 {
-
-    if (argc < 2)
+    if (argc < 4)
     {
         print_error("SCFE called with no arguments!");
         help();
@@ -36,20 +36,23 @@ int main(int argc, const char** argv)
         help();
         return 0;
     }
-    auto* lexer = new Lexer(argv[1]);
-
-    LexerResult* result = lexer->lexer();
+    if (!strncmp(argv[2], "-o", 2))
+    {
+        print_error("Output file not specified!");
+    }
+    Lexer lexer(argv[1]);
+    LexerResult* result = lexer.lexer();
     if (result->returnCode == SBCCCode::FileNotPresent)
     {
-        delete lexer;
         return 1;
     }
+
     for (auto& i : *result->TokenisedInput)
     {
-        printf("%s, %llu\n", i.lexeme.c_str(), i.lineNumber);
+        printf("%s, %lu\n", i.lexeme.c_str(), i.lineNumber);
     }
     CParse parser(result->TokenisedInput);
-    if (!parser.parse()) {print_error("Error whilst parsing!"); delete lexer; return 1;}
+    if (!parser.parse()) {print_error("Error whilst parsing!"); return 1;}
 
     SemanticAnalyser analyser;
     bool success = analyser.startSemanticAnalysis(parser);
@@ -58,7 +61,6 @@ int main(int argc, const char** argv)
         printf("Semantically OK translation unit, proceeding to produce code!\n");
     }
     else {
-        delete lexer;
         return 1;
     }
 
@@ -75,9 +77,8 @@ int main(int argc, const char** argv)
             printf("%s", x->print().c_str());
         }
     }
-
-
-    delete lexer;
+    CodeGenerator codeGenerator(abstractVirtualMachine, argv[3]);
+    codeGenerator.startFinalTranslation();
 
 
     return 0;
