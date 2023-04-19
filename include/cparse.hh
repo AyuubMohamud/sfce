@@ -609,6 +609,10 @@ private:
 };
 class AllocaInstruction : public AVMInstruction {
 public:
+    AVMInstructionType getInstructionType() override
+    {
+        return type;
+    }
     std::string target{};
     std::string print() override
     {
@@ -662,7 +666,6 @@ public:
     CParse& parserState;
     std::vector<AVMFunction*> compilationUnit{};
     void AVMByteCodeDriver(FunctionAST* functionToBeTranslated);
-    void cvtBasicBlockToAVMByteCode(ASTNode *node, AVMBasicBlock* basicBlock);
     std::vector<Symbol*> globalSyms;
     AVMFunction* currentFunction = nullptr;
     ASTNode* currentNode = nullptr;
@@ -695,11 +698,10 @@ public:
         tmpCounter++;
         return tmp;
     }
-
     void startBasicBlockConversion(ASTNode *node);
-
-    void ifHandler(ASTNode *ifDecl, ASTNode *continuation);
-
-
     std::vector<AVMBasicBlock *> newBasicBlockHandler(ASTNode *node, ASTNode *nextBasicBlock, bool nested);
+
+    void optMulToShift(AVMBasicBlock* basicBlock);
+
+    void avmOptimiseFunction(AVMFunction* function);
 };

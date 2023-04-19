@@ -36,9 +36,17 @@ int main(int argc, const char** argv)
         help();
         return 0;
     }
-    if (!strncmp(argv[2], "-o", 2))
+    if (strncmp(argv[2], "-o", 2) != 0)
     {
         print_error("Output file not specified!");
+        return 1;
+    }
+    bool optimise = false;
+    if (argc > 4)
+    {
+        if (strncmp(argv[4], "-O0", 8) != 0) {
+            optimise = true;
+        }
     }
     Lexer lexer(argv[1]);
     LexerResult* result = lexer.lexer();
@@ -46,11 +54,12 @@ int main(int argc, const char** argv)
     {
         return 1;
     }
-
+/*
     for (auto& i : *result->TokenisedInput)
     {
         printf("%s, %lu\n", i.lexeme.c_str(), i.lineNumber);
     }
+    */
     CParse parser(result->TokenisedInput);
     if (!parser.parse()) {print_error("Error whilst parsing!"); return 1;}
 
@@ -69,7 +78,11 @@ int main(int argc, const char** argv)
     {
         abstractVirtualMachine.AVMByteCodeDriver(i);
     }
-
+    if (optimise) {
+        for (auto *i: abstractVirtualMachine.compilationUnit) {
+            abstractVirtualMachine.avmOptimiseFunction(i);
+        }
+    }
     for (auto* i: abstractVirtualMachine.compilationUnit)
     {
         for (auto* x : i->basicBlocksInFunction) {

@@ -253,8 +253,6 @@ bool CParse::parse()
                 function->root = compoundStatement();
                 currentScope = currentScope->parent;
                 functions.push_back(function);
-                function->printFunction();
-
             }
             else {
                 print_error(tokens->at(cursor).lineNumber, "Expected semicolon after declaration");
@@ -1204,7 +1202,12 @@ bool CParse::directDeclarator(std::vector<DeclaratorPieces *> *declPieces) {
             if (tokens->at(cursor).token == CLOSE_PARENTHESES)
             {
                 auto* funcProto = new FunctionPrototype;
+                auto* scope = new ScopeAST;
+                scope->parent = currentScope;
+                funcProto->scope = scope;
                 declPieces->push_back(funcProto);
+                cursor++;
+                return true;
             } else {
                 auto* funcProto = parameterList();
                 declPieces->push_back(funcProto);

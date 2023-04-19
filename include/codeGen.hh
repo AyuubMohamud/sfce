@@ -8,10 +8,10 @@ public:
     ~CodeGenerator();
 private:
     AVM& virtualMachine;
-    std::ofstream* assemblyFile = nullptr;
+    std::ofstream assemblyFile;
     void convertFunctionToASM(AVMFunction* function);
     void convertBasicBlockToASM(AVMBasicBlock* basicBlock);
+    std::vector<std::pair<std::string, u16>> functionLocalSymbols;
 
-
-
+    std::string Preparation(u8 stackSize);
 };

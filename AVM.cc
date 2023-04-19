@@ -1,6 +1,9 @@
 #include <sfce.hh>
 #include <cparse.hh>
 #include <errorHandler.hh>
+#include <numeric>
+#include <cmath>
+
 /*
  *
  * Traverse AST, ignore A_GLUES
@@ -400,6 +403,101 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
         default:
         {
             return {};
+        }
+    }
+}
+
+bool isPowerOfTwo(u64 val)
+{
+    return std::__popcount(val) == 1;
+}
+/*
+ * void avmOptimiseFunction
+ *
+ * This function performs all available optimisations on AVM IR, on a per-function basis
+ * */
+void AVM::avmOptimiseFunction(AVMFunction* function) {
+    for (auto it : function->basicBlocksInFunction)
+    {
+        optMulToShift(it);
+    }
+}
+/*
+ * void optMulToShift
+ *
+ * Convert multiplications where the multiplicand is a power of two into a shift, performed on a per-basic block basis.
+ * This function uses the commutative property of multiplication to reorder cases where the multiplier is a power of two and turn that into a multiplicand
+ * */
+void AVM::optMulToShift(AVMBasicBlock *basicBlock) {
+    std::vector<ArithmeticInstruction*> multiplies;
+    std::vector<MoveInstruction*> multiplicands;
+    std::vector<MoveInstruction*> multipliers;
+    std::vector<u64> indexes;
+
+    for (auto x = 0; x < basicBlock->sequenceOfInstructions.size(); x++) // Loop through basic block and find any relevant multiplies
+    {
+        auto* it = basicBlock->sequenceOfInstructions.at(x);
+        if (it->getInstructionType() == AVMInstructionType::ARITHMETIC)
+        {
+            auto* instruction = dynamic_cast<ArithmeticInstruction*>(it);
+            if (it->opcode == AVMOpcode::MUL) {
+                multiplies.push_back(instruction);
+                indexes.push_back(x);
+            }
+        }
+    }
+
+    for (auto x = 0; x < multiplies.size(); x++)
+    {
+        auto* it = multiplies.at(x);
+        bool multiplicandIsConstant = false;
+        u64 multiplicandValue = 0;
+        u64 multiplicandPos = 0;
+        bool multiplierIsConstant = false;
+        u64 multiplierValue = 0;
+        u64 multiplierPos = 0;
+        for (auto y = 0; y < basicBlock->sequenceOfInstructions.size(); y++)
+        {
+            auto* ins = basicBlock->sequenceOfInstructions.at(y);
+            if (ins->getInstructionType() == AVMInstructionType::MV)
+            {
+
+                auto* moveInstruction = dynamic_cast<MoveInstruction*>(ins);
+                if (moveInstruction->valueToBeMoved.at(0) != '#')
+                    break;
+                std::string num = moveInstruction->valueToBeMoved;
+                num.erase(num.begin());
+                if (!multiplicandIsConstant) {
+                    multiplicandIsConstant = moveInstruction->dest == it->src2;
+                    multiplicandValue = std::stoull(num);
+                    multiplicandPos = multiplicandIsConstant ? y : multiplicandPos;
+                }
+                if (!multiplierIsConstant) {
+                    multiplierIsConstant = moveInstruction->dest == it->src1;
+                    multiplierValue = std::stoull(num);
+                    multiplierPos = multiplierIsConstant ? y : multiplierPos;
+                }
+            }
+        }
+        if (multiplicandIsConstant && isPowerOfTwo(multiplicandValue))
+        {
+            auto* oldMoveInstruction = basicBlock->sequenceOfInstructions.at(multiplicandPos);
+            dynamic_cast<MoveInstruction*>(oldMoveInstruction)->valueToBeMoved = "#";
+            dynamic_cast<MoveInstruction*>(oldMoveInstruction)->valueToBeMoved.append(std::to_string((u64)std::trunc(std::log2(multiplicandValue))));
+            auto* arithmeticInstruction = basicBlock->sequenceOfInstructions.at(indexes.at(x));
+            arithmeticInstruction->opcode = AVMOpcode::SLL;
+        }
+        else if (multiplierIsConstant && isPowerOfTwo(multiplierValue))
+        {
+            auto* oldMoveInstruction = basicBlock->sequenceOfInstructions.at(multiplierPos);
+            dynamic_cast<MoveInstruction*>(oldMoveInstruction)->valueToBeMoved = "#";
+            dynamic_cast<MoveInstruction*>(oldMoveInstruction)->valueToBeMoved.append(std::to_string((u64)std::trunc(std::log2(multiplierValue))));
+            auto* arithmeticInstruction = basicBlock->sequenceOfInstructions.at(indexes.at(x));
+            arithmeticInstruction->opcode = AVMOpcode::SLL;
+            std::string temp{};
+            temp = dynamic_cast<ArithmeticInstruction*>(arithmeticInstruction)->src2;
+            dynamic_cast<ArithmeticInstruction*>(arithmeticInstruction)->src2 = dynamic_cast<ArithmeticInstruction*>(arithmeticInstruction)->src1;
+            dynamic_cast<ArithmeticInstruction*>(arithmeticInstruction)->src1 = temp;
         }
     }
 }
