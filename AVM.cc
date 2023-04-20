@@ -146,6 +146,11 @@ std::string AVM::genCode(ASTNode *expr) {
             movInstruction->dest = genTmpDest();
             movInstruction->opcode = AVMOpcode::MV;
             currentBasicBlock->sequenceOfInstructions.push_back(movInstruction);
+            auto* tempSymbol = new Symbol;
+            tempSymbol->type = new CType;
+            tempSymbol->identifier = movInstruction->dest;
+            tempSymbol->type->typeSpecifier.push_back({.token = INTEGER, .lexeme = "int", .lineNumber = 0});
+            currentFunction->variablesInFunction.push_back(tempSymbol);
             return movInstruction->dest;
         }
         case A_RET:
