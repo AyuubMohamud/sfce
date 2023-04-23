@@ -44,6 +44,8 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
                 auto* symbol1 = arguments.at(i);
                 auto* symbol2 = calleePrototype->types.at(i);
                 bool sym2isPtr = symbol2->type->isPtr();
+                if (symbol1 == nullptr)
+                    return true;
                 bool ok = symbol1->isEqual(symbol2->type, !(symbol1->isPtr()||symbol2->type->isPtr()));
                 if (!ok)
                     return true;
@@ -256,6 +258,23 @@ CType* SemanticAnalyser::evalType(CParse& parserState, ASTNode *expr) {
             return nullptr;
         }
         return parserState.globalSymbolTable[pos]->type;
+    }
+    if (expr->op == A_CALL)
+    {
+        bool error = analyseTree(parserState, expr);
+        if (error)
+        {
+            return nullptr;
+        }
+        else {
+            i64 pos = scope->findRegularSymbol(expr->left->identifier);
+            if (pos == -1)
+            {
+                printf("Undeclared variable used in file!\n");
+                return nullptr;
+            }
+            return parserState.globalSymbolTable[pos]->type;
+        }
     }
     return nullptr;
 }
