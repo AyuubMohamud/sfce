@@ -83,9 +83,13 @@ int main(int argc, const char** argv)
             abstractVirtualMachine.avmOptimiseFunction(i);
         }
     }
-    for (auto* i: abstractVirtualMachine.compilationUnit)
-    {
-        for (auto* x : i->basicBlocksInFunction) {
+    for (auto* i: abstractVirtualMachine.compilationUnit) {
+        printf("DECL FUNC %s\n", i->name.c_str());
+        for (auto symbol : i->incomingSymbols)
+        {
+            printf("PARAM %s: %s\n",symbol->identifier.c_str(), symbol->type->typeAsString().c_str());
+        }
+        for (auto *x: i->basicBlocksInFunction) {
             printf("LABEL: %s\n", x->label.c_str());
             printf("%s", x->print().c_str());
         }

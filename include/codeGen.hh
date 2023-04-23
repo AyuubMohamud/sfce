@@ -57,4 +57,8 @@ private:
     Register findVariable(std::string);
     Register allocRegister(std::string);
     void regAllocInit(AVMFunction* function);
+
+    void freeRegs();
+
+    void saveVariable(const std::string& identifier);
 };

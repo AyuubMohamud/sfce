@@ -92,21 +92,63 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     std::string temp;
     temp.append(function->name);
     temp.append(":\n");
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "NullDereference"
     assemblyFile << temp;
-#pragma clang diagnostic pop
     bool finished = false;
     std::vector<AllocaInstruction*> allocations;
     int varsInitialised = 0;
     for (auto* instruction : function->basicBlocksInFunction.at(0)->sequenceOfInstructions) {
         if (instruction->getInstructionType() == AVMInstructionType::ALLOCA) {
-            allocations.push_back(dynamic_cast<AllocaInstruction*>(instruction));
-            functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<AllocaInstruction*>(instruction)->target, varsInitialised);
-            varsInitialised++;
-        } else {
-            finished = true;
-            break;
+
+        }
+        switch (instruction->getInstructionType()) {
+            case AVMInstructionType::ARITHMETIC: {
+                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ArithmeticInstruction*>(instruction)->dest, varsInitialised);
+                varsInitialised++;
+                break;
+            }
+            case AVMInstructionType::LOAD: {
+                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<LoadMemoryInstruction*>(instruction)->dest, varsInitialised);
+                varsInitialised++;
+                break;
+            }
+            case AVMInstructionType::STORE:
+                break;
+            case AVMInstructionType::GEP:
+            {
+                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<GetElementPtr*>(instruction)->dest, varsInitialised);
+                varsInitialised++;
+                break;
+            }
+            case AVMInstructionType::CMP: {
+                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ComparisonInstruction*>(instruction)->dest, varsInitialised);
+                varsInitialised++;
+                break;
+            }
+            case AVMInstructionType::BRANCH: {
+
+                break;
+            }
+            case AVMInstructionType::CALL: {
+                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<CallInstruction*>(instruction)->returnVal, varsInitialised);
+                varsInitialised++;
+                break;
+            }
+            case AVMInstructionType::RET:
+                break;
+            case AVMInstructionType::MV: {
+                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<MoveInstruction*>(instruction)->dest, varsInitialised);
+                varsInitialised++;
+                break;
+            }
+            case AVMInstructionType::ALLOCA:
+            {
+                allocations.push_back(dynamic_cast<AllocaInstruction*>(instruction));
+                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<AllocaInstruction*>(instruction)->target, varsInitialised);
+                varsInitialised++;
+                break;
+            }
+            case AVMInstructionType::END:
+                break;
         }
     }
     // treat each as u64,
@@ -117,6 +159,7 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     stackSize = roundUp(varsInitialised*8)/16;
     // Need to do this as stack pointer **MUST** be 16-byte aligned
     assemblyFile << Preparation(stackSize);
+    regAllocInit(function);
     for (auto it : function->basicBlocksInFunction)
     {
         assemblyFile << it->label << ":\n";
@@ -159,7 +202,6 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
                     assemblyFile << init;
             }
         }
-        regAllocInit(function);
         convertBasicBlockToASM(it);
     }
 
@@ -215,21 +257,105 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 temp.append(regToString(findVariable(arithmeticInstruction->src2)));
                 temp.append("\n");
                 assemblyFile << temp;
+                saveVariable(arithmeticInstruction->dest);
+                freeRegs();
+                break;
             }
-            case AVMInstructionType::LOAD:
+            case AVMInstructionType::LOAD: {
+                auto loadInstruction = dynamic_cast<LoadMemoryInstruction*>(it);
+                std::string temp{};
+                temp.append("ldr ");
+                temp.append(regToString(allocRegister(loadInstruction->dest)));
+                temp.append(", ");
+                temp.append(regToString(findVariable(loadInstruction->addrVar)));
+                temp.append("\n");
+                assemblyFile << temp;
+                saveVariable(loadInstruction->dest);
+                freeRegs();
                 break;
-            case AVMInstructionType::STORE:
+            }
+            case AVMInstructionType::STORE: {
                 break;
-            case AVMInstructionType::GEP:
+            }
+            case AVMInstructionType::GEP: {
+                auto gepInstruction = dynamic_cast<GetElementPtr*>(it);
+                std::string temp{};
+                for (const auto& symbol : functionLocalSymbolMapOnStack)
+                {
+                    if (symbol.first == gepInstruction->src)
+                    {
+                        u16 offset = symbol.second;
+                        temp.append("\tadd ");
+                        temp.append(regToString(allocRegister(gepInstruction->dest)));
+                        temp.append(", sp, #");
+                        temp.append(std::to_string(offset));
+                        temp.append("\n");
+                        assemblyFile << temp;
+                        saveVariable(gepInstruction->dest);
+                        freeRegs();
+                    }
+                }
                 break;
+            }
             case AVMInstructionType::CMP:
                 break;
             case AVMInstructionType::CALL:
+            {
+                auto callInstruction = dynamic_cast<CallInstruction*>(it);
+                std::vector<Register> vecOfAvailableRegisters{
+                    Register::X0,
+                    Register::X1,
+                    Register::X2,
+                    Register::X3,
+                    Register::X4,
+                    Register::X5,
+                    Register::X6,
+                    Register::X7
+                };
+                u8 cursor = 0;
+                for (const auto& symbol : callInstruction->args)
+                {
+                    std::string temp;
+                    temp.append("\tmov ");
+                    temp.append(regToString(vecOfAvailableRegisters.at(cursor)));
+                    temp.append(", ");
+                    temp.append(regToString(findVariable(symbol)));
+                    temp.append("\n");
+                    assemblyFile << temp;
+                    freeRegs();
+                    cursor++;
+                }
+                std::string functionName;
+                functionName = callInstruction->funcName;
+                functionName.erase(functionName.begin());
+                assemblyFile << ("\tbl ") << functionName << "\n";
+                assemblyFile << "\tmov x10, x0\n";
+                saveVariable(callInstruction->returnVal);
+                freeRegs();
                 break;
-            case AVMInstructionType::RET:
+            }
+            case AVMInstructionType::RET: {
+                auto returnInstruction = dynamic_cast<RetInstruction*>(it);
+                std::string moveInstruction{};
+                moveInstruction.append("\tmov x0, ");
+                moveInstruction.append(regToString(findVariable(returnInstruction->value)));
+                assemblyFile << moveInstruction << "\n";
+                assemblyFile << "\tret\n";
                 break;
-            case AVMInstructionType::MV:
+            }
+            case AVMInstructionType::MV: {
+                auto moveInstruction = dynamic_cast<MoveInstruction*>(it);
+                std::string temp{};
+                temp.append("\tmov ");
+                temp.append(regToString(allocRegister(moveInstruction->dest)));
+                temp.append(", ");
+                temp.append(regToString(findVariable(moveInstruction->valueToBeMoved)));
+                temp.append("\n");
+                assemblyFile << temp;
+                saveVariable(moveInstruction->dest);
+                freeRegs();
                 break;
+            }
             default:
                 break;
         }
@@ -237,169 +363,61 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
 
 }
 
-void CodeGenerator::regAllocInit(AVMFunction* function) {
-    freeRegisters.push(Register::X9);
-    freeRegisters.push(Register::X10);
-    freeRegisters.push(Register::X11);
-    freeRegisters.push(Register::X12);
-    freeRegisters.push(Register::X13);
-    freeRegisters.push(Register::X14);
-    freeRegisters.push(Register::X15);
-    freeRegisters.push(Register::X16);
 
-    for (auto it : function->variablesInFunction)
-    {
-        u64 bytecodeLine = 0;
-        u64 bytecodeLineFirst = 0;
-        u64 bytecodeLineLast = 0;
-        for (auto it2 : function->basicBlocksInFunction)
-        {
-            for (auto it3 : it2->sequenceOfInstructions)
-            {
-                switch (it3->getInstructionType()) {
-                    case AVMInstructionType::ARITHMETIC: {
-                        auto instruction = dynamic_cast<ArithmeticInstruction*>(it3);
-                        if (instruction->dest == it->identifier || instruction->src1 == it->identifier || instruction->src2 == it->identifier) {
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
+Register CodeGenerator::findVariable(std::string identifier) {
+    Register freeReg = freeRegisters.front();
+    freeRegisters.pop();
+    std::string loadInstruction;
+    loadInstruction.append("\tldr ");
+    loadInstruction.append(regToString(freeReg));
 
-                        break;
-                    }
-                    case AVMInstructionType::LOAD: {
-                        auto instruction = dynamic_cast<LoadMemoryInstruction*>(it3);
-                        if (instruction->dest == it->identifier || instruction->addrVar == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::STORE: {
-                        auto instruction = dynamic_cast<StoreMemoryInstruction*>(it3);
-                        if (instruction->src == it->identifier || instruction->addrVar == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::GEP: {
-                        auto instruction = dynamic_cast<GetElementPtr*>(it3);
-                        if (instruction->src == it->identifier || instruction->dest == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::CMP: {
-                        auto instruction = dynamic_cast<ComparisonInstruction*>(it3);
-                        if (instruction->op1 == it->identifier || instruction->op2 == it->identifier || instruction->dest == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::BRANCH: {
-                        auto instruction = dynamic_cast<BranchInstruction*>(it3);
-                        if (instruction->dependantComparison == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::CALL: {
-                        auto instruction = dynamic_cast<CallInstruction*>(it3);
-                        bool present = false;
-                        for (const auto& it4 : instruction->args)
-                            if (it->identifier == it4)
-                                present = true;
-                        if (instruction->returnVal == it->identifier || present){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::RET: {
-                        auto instruction = dynamic_cast<RetInstruction*>(it3);
-                        if (instruction->value == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::MV: {
-                        auto instruction = dynamic_cast<MoveInstruction*>(it3);
-                        if (instruction->valueToBeMoved == it->identifier || instruction->dest == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    case AVMInstructionType::ALLOCA:
-                    {
-                        auto instruction = dynamic_cast<AllocaInstruction*>(it3);
-                        if (instruction->target == it->identifier){
-                            if (bytecodeLineFirst==0) {
-                                bytecodeLineFirst = bytecodeLine;
-                            }
-                            else {
-                                bytecodeLineLast = bytecodeLine;
-                            }
-                        }
-                        break;
-                    }
-                    default:
-                        break;
-                }
-                bytecodeLine++;
-
-            }
-
+    u16 offset = 0;
+    if (identifier.at(0) != '#') {
+        loadInstruction.append(", [sp, ");
+        for (const auto &symbol: functionLocalSymbolMapOnStack) {
+            if (symbol.first == identifier)
+                offset = symbol.second;
         }
-        liveRanges[it->identifier] = {bytecodeLineFirst, bytecodeLineLast};
+        loadInstruction.append("#");
+        loadInstruction.append(std::to_string(offset*8));
+        loadInstruction.append("]");
+    }
+    else {
+        loadInstruction.append(", =");
+        std::string temp = identifier;
+        temp.erase(0, 1);
+        loadInstruction.append(temp);
+    }
+
+    loadInstruction.append("\n");
+    assemblyFile << loadInstruction;
+    return freeReg;
+}
+void CodeGenerator::freeRegs() {
+    if (freeRegisters.empty()) {
+        freeRegisters.push(Register::X9);
+        freeRegisters.push(Register::X10);
     }
 }
+void CodeGenerator::saveVariable(const std::string& identifier) {
+    for (const auto& symbol : functionLocalSymbolMapOnStack)
+    {
+        if (symbol.first == identifier)
+        {
+            std::string storeInstruction;
+            storeInstruction.append("\tstr x10, [sp, #");
+            storeInstruction.append(std::to_string(symbol.second*8));
+            storeInstruction.append("]\n");
+            assemblyFile << storeInstruction;
+        }
+    }
 
-Register CodeGenerator::findVariable(std::string) {
-    return Register::X19;
+}
+Register CodeGenerator::allocRegister(std::string identifier) {
+    return Register::X10;
 }
 
-Register CodeGenerator::allocRegister(std::string) {
-    return Register::X19;
+void CodeGenerator::regAllocInit(AVMFunction *function) {
+    freeRegs();
 }
 

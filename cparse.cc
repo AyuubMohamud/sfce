@@ -1371,10 +1371,13 @@ FunctionPrototype::~FunctionPrototype() {
 
 std::string FunctionPrototype::print() {
     std::string temp;
+    temp.append("(");
     for (auto* i: types) {
         temp.append(i->type->typeAsString());
         temp.append(",");
     }
+    temp.erase(temp.end()-1);
+    temp.append(")");
     return temp;
 }
 
@@ -1517,6 +1520,10 @@ std::string CType::typeAsString() {
     for (const auto& i: typeSpecifier)
     {
         type.append(i.lexeme);
+    }
+    for (const auto& i : declaratorPartList)
+    {
+        type.append(i->print());
     }
 
     return type;

@@ -543,7 +543,8 @@ public:
             temp.append(i);
             temp.append(",");
         }
-        temp.erase(temp.end()-1);
+        if (temp.at(temp.size()-1) == ',')
+            temp.erase(temp.end()-1);
         temp.append(")");
         return temp;
     }
@@ -651,6 +652,7 @@ public:
     std::vector<Symbol*> incomingSymbols;
     std::vector<AVMBasicBlock*> basicBlocksInFunction;
     std::vector<Symbol*> variablesInFunction;
+    std::vector<AVMInstruction*> poolOfInstructions;
     std::string name;
     AdjacencyMatrix* adjacencyMatrix = nullptr;
     FunctionPrototype* prototype = nullptr;
@@ -704,4 +706,12 @@ public:
     void optMulToShift(AVMBasicBlock* basicBlock);
 
     void avmOptimiseFunction(AVMFunction* function);
+
+    void optDivToShift(AVMBasicBlock *basicBlock);
+
+    void optFoldConstants(AVMBasicBlock *basicBlock);
+
+    void optPropagateConstants(AVMFunction *function);
+
+    void copyPropagation(AVMFunction *function);
 };

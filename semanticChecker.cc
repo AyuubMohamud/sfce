@@ -42,7 +42,7 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
             for (const auto& it : arguments)
             {
                 pos = scope->findRegularSymbol(it);
-                if (pos == -1)
+                if (pos == -1 && it.at(0) != '#')
                     return true;
                 syms.push_back(parserState.globalSymbolTable.at(pos));
             }
@@ -51,7 +51,8 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
             {
                 auto* symbol1 = syms.at(i);
                 auto* symbol2 = calleePrototype->types.at(i);
-                bool ok = symbol1->type->isEqual(symbol2->type, !symbol1->type->isPtr());
+                bool sym2isPtr = symbol2->type->isPtr();
+                bool ok = symbol1->type->isEqual(symbol2->type, !(symbol1->type->isPtr()||symbol2->type->isPtr()));
                 if (!ok)
                     return true;
             }

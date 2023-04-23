@@ -344,7 +344,7 @@ SBCCCode Lexer::compoundExpressionHandler()
 SBCCCode Lexer::identifiers()
 {
     std::string literal;
-    while (std::isalnum(peek()))
+    while (std::isalnum(peek())||peek()=='_')
     {
         literal.push_back(advance());
     }
