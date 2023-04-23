@@ -163,6 +163,7 @@ struct Symbol {
     CType* type = nullptr;
     bool abstractdecl = false;
     std::string identifier;
+    std::string string_literal;
 };
 
 
@@ -271,8 +272,8 @@ private:
     std::vector<DeclaratorPieces*>* declarator();
     bool declarationSpecifiers(CType* cType);
     static bool combinable(CType* cType, const Token& token);
-    bool initDeclaratorList(CType* ctype);
-    Symbol* initDeclarator(CType* ctype);
+    bool initDeclaratorList(CType* ctype, bool constant);
+    Symbol* initDeclarator(CType* ctype, bool constant);
     std::vector<Pointer*> pointer();
     std::vector<DeclaratorPieces *> * abstractDeclarator();
     bool directDeclarator(std::vector<DeclaratorPieces*>* declPieces);
@@ -300,9 +301,6 @@ private:
     ASTNode* argumentExpressionList();
     ASTNode* binaryExpression();
     bool typeName(CType* ctype);
-
-
-
 
     std::string identifier;
     bool fuse = false;
@@ -418,7 +416,7 @@ public:
         std::string temp{};
         temp.append("ldr ");
         temp.append(dest);
-        temp.append(",");
+        temp.append(", ");
         temp.append(addrVar);
         return temp;
     }
@@ -436,7 +434,7 @@ public:
         std::string temp{};
         temp.append("str ");
         temp.append(src);
-        temp.append(",");
+        temp.append(", ");
         temp.append(addrVar);
         return temp;
     }
@@ -454,7 +452,7 @@ public:
         std::string temp{};
         temp.append("gep ");
         temp.append(dest);
-        temp.append(",");
+        temp.append(", ");
         temp.append(src);
         return temp;
     }
@@ -698,6 +696,13 @@ public:
         std::string tmp = "%tmp.";
         tmp.append(std::to_string(tmpCounter));
         tmpCounter++;
+        return tmp;
+    }
+    u64 globalCounter = 0;
+    std::string genGlobalDest() {
+        std::string tmp = "!label.";
+        tmp.append(std::to_string(globalCounter));
+        globalCounter++;
         return tmp;
     }
     void startBasicBlockConversion(ASTNode *node);

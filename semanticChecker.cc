@@ -196,6 +196,19 @@ CType* SemanticAnalyser::evalType(CParse& parserState, ASTNode *expr) {
         expr->type = type;
         return type;
     }
+    if (expr->op == A_LITERAL)
+    {
+        auto* type = new CType;
+        type->typeSpecifier.push_back({
+            .token = CHAR,
+            .lexeme = "",
+            .lineNumber = 0
+        });
+        auto* pointer = new Pointer;
+        pointer->setConst();
+        type->declaratorPartList.push_back(pointer);
+        return type;
+    }
     if (expr->op == A_INC || expr->op == A_DEC)
     {
         auto* typeUnary = evalType(parserState, expr->left);

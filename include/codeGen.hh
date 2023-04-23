@@ -51,7 +51,8 @@ private:
 
     std::unordered_map<std::string, std::pair<u64,u64>> liveRanges;
     std::queue<Register> freeRegisters;
-
+    u32 stackSizeForEpilogue = 0;
+    bool epilogueUsed = false;
     std::string Prologue(u32 stackSize);
 
     Register findVariable(std::string);

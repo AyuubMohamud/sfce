@@ -23,8 +23,9 @@ void AVM::AVMByteCodeDriver(FunctionAST* functionToBeTranslated) {
     auto* prototype = dynamic_cast<FunctionPrototype*>(funcSymbol->type->declaratorPartList[1]);
     function->prototype = prototype;
     currentFunction = function;
-    for (auto* i : prototype->types)
+    for (auto* i : prototype->types) {
         currentFunction->incomingSymbols.push_back(i);
+    }
     label = "entry";
     tmpCounter = 0;
     function->name = functionToBeTranslated->funcIdentifier;
@@ -202,6 +203,29 @@ std::string AVM::genCode(ASTNode *expr) {
             currentBasicBlock->sequenceOfInstructions.push_back(moveInstruction);
             return {};
         }
+        case A_LITERAL:
+        {
+            std::string tmp{};
+            tmp = genGlobalDest();
+            auto* symbol = new Symbol;
+            symbol->identifier = tmp;
+            symbol->type = new CType;
+            symbol->type->typeSpecifier.push_back({
+                .token = CHAR
+            });
+            symbol->string_literal = expr->identifier;
+            auto* pointer = new Pointer;
+            pointer->setConst();
+            symbol->type->declaratorPartList.push_back(pointer);
+            globalSyms.push_back(symbol);
+            parserState.globalSymbolTable.push_back(symbol);
+            auto* gep = new GetElementPtr;
+            gep->dest = genTmpDest();
+            gep->src = tmp;
+            gep->opcode = AVMOpcode::GEP;
+            currentBasicBlock->sequenceOfInstructions.push_back(gep);
+            return gep->dest;
+        }
         case A_IFDECL:
         case A_WHILEBODY:
         case A_FORDECL:
@@ -234,13 +258,13 @@ std::string AVM::genCode(ASTNode *expr) {
                 arithmeticInstruction->src2 = genCode(expr->right);
                 arithmeticInstruction->opcode = toAVM(expr->op);
                 arithmeticInstruction->dest = genTmpDest();
-                if (arithmeticInstruction->src1.at(0) == '#')
+                /*if (arithmeticInstruction->src1.at(0) == '#')
                 {
                     std::string temp;
                     temp = arithmeticInstruction->src1;
                     arithmeticInstruction->src1 = arithmeticInstruction->src2;
                     arithmeticInstruction->src2 = temp;
-                }
+                }*/
                 auto* tempSymbol = new Symbol;
                 tempSymbol->type = new CType;
                 tempSymbol->identifier = arithmeticInstruction->dest;

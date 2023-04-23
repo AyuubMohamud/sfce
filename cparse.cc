@@ -236,7 +236,7 @@ bool CParse::parse()
             return false;
         }
 
-        if (!initDeclaratorList(type)) {
+        if (!initDeclaratorList(type, true)) {
             print_error("Failure whilst parsing declarator!");
             delete currentScope;
             delete type;
@@ -433,10 +433,14 @@ ASTNode* CParse::blockItem() {
         auto* ctype = new CType;
         bool error = declarationSpecifiers(ctype);
         if (error) return nullptr;
-        if (!initDeclaratorList(ctype)) return nullptr;
-        auto* emptyNode = new ASTNode;
-        cursor++;
-        return emptyNode;
+        if (!initDeclaratorList(ctype, false)) return nullptr;
+        if (tokens->at(cursor).token != ASSIGNMENT){
+            auto *emptyNode = new ASTNode;
+            cursor++;
+            return emptyNode;
+        }
+        cursor--;
+        return statement();
     }
     else {
         return statement();
@@ -555,7 +559,7 @@ ASTNode* CParse::iterationStatement() {
                     currentScope = temp;
                     return nullptr;
                 }
-                if (!initDeclaratorList(type)) {
+                if (!initDeclaratorList(type, false)) {
                     print_error("Failure whilst parsing declarator!");
                     ScopeAST* temp = currentScope->parent;
                     delete currentScope;
@@ -1086,8 +1090,8 @@ ASTNode *CParse::constantExpression() {
 
 
 
-bool CParse::initDeclaratorList(CType *ctype) {
-    Symbol* symbol = initDeclarator(ctype);
+bool CParse::initDeclaratorList(CType *ctype, bool constant) {
+    Symbol* symbol = initDeclarator(ctype, constant);
     if (symbol == nullptr) return false;
     currentScope->rst.SymbolHashMap.insert({symbol->identifier, globalIndex});
     globalSymbolTable.push_back(symbol); // add declarator to symbol table
@@ -1098,7 +1102,7 @@ bool CParse::initDeclaratorList(CType *ctype) {
     return true;
 }
 
-Symbol* CParse::initDeclarator(CType *ctype) {
+Symbol* CParse::initDeclarator(CType *ctype, bool constant) {
     auto* symbol = new Symbol;
 
     std::vector<DeclaratorPieces*>* y = declarator();
@@ -1119,11 +1123,13 @@ Symbol* CParse::initDeclarator(CType *ctype) {
     auto* x = dynamic_cast<Identifier*>(ctype->declaratorPartList[0]);
     symbol->identifier = x->identifier_name;
 
-    if (tokens->at(cursor).token == ASSIGNMENT && tokens->at(cursor+1).token == INTEGER_LITERAL)
-    {
-        symbol->value = std::stoi(tokens->at(cursor+1).lexeme); // store initial value
-        cursor+=2;
+    if (constant) {
+        if (tokens->at(cursor).token == ASSIGNMENT && tokens->at(cursor + 1).token == INTEGER_LITERAL) {
+            symbol->value = std::stoi(tokens->at(cursor + 1).lexeme); // store initial value
+            cursor += 2;
+        }
     }
+
 
     return symbol;
 }

@@ -64,11 +64,24 @@ void CodeGenerator::startFinalTranslation() {
     for (auto it : virtualMachine.globalSyms)
     {
         std::string temp;
-        if (it->type->isNumVar()||it->type->isPtr()) {
+
+        if (it->type->isNumVar()||(it->type->isPtr() && it->type->typeSpecifier.at(0).token != CHAR)) {
             temp.append(it->identifier);
             temp.append(": ");
             temp.append(".octa ");
             temp.append(std::to_string(it->value));
+            temp.append("\n");
+        }
+        else if (it->type->isPtr()&&it->type->typeSpecifier.at(0).token == CHAR) {
+            std::string tmp;
+            tmp = it->identifier;
+            tmp.erase(0, 1);
+            temp.append(tmp);
+            temp.append(": ");
+            temp.append(".asciz \"");
+
+            temp.append(it->string_literal);
+            temp.append("\"");
             temp.append("\n");
         }
 #pragma clang diagnostic push
@@ -97,31 +110,64 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     std::vector<AllocaInstruction*> allocations;
     int varsInitialised = 0;
     for (auto* instruction : function->basicBlocksInFunction.at(0)->sequenceOfInstructions) {
-        if (instruction->getInstructionType() == AVMInstructionType::ALLOCA) {
-
-        }
         switch (instruction->getInstructionType()) {
             case AVMInstructionType::ARITHMETIC: {
-                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ArithmeticInstruction*>(instruction)->dest, varsInitialised);
-                varsInitialised++;
+                if (dynamic_cast<ArithmeticInstruction*>(instruction)->dest.at(0) == '%')
+                {
+                    bool found = false;
+                    for (const auto& x : functionLocalSymbolMapOnStack)
+                        if (x.first == dynamic_cast<ArithmeticInstruction*>(instruction)->dest)
+                            found = true;
+                    if (!found) {
+                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ArithmeticInstruction*>(instruction)->dest, varsInitialised);
+                        varsInitialised++;
+                    }
+                }
                 break;
             }
             case AVMInstructionType::LOAD: {
-                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<LoadMemoryInstruction*>(instruction)->dest, varsInitialised);
-                varsInitialised++;
+                if (dynamic_cast<LoadMemoryInstruction*>(instruction)->dest.at(0) == '%')
+                {
+                    bool found = false;
+                    for (const auto& x : functionLocalSymbolMapOnStack)
+                        if (x.first == dynamic_cast<LoadMemoryInstruction*>(instruction)->dest)
+                            found = true;
+                    if (!found) {
+                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<LoadMemoryInstruction*>(instruction)->dest, varsInitialised);
+                        varsInitialised++;
+                    }
+                }
                 break;
             }
             case AVMInstructionType::STORE:
                 break;
             case AVMInstructionType::GEP:
             {
-                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<GetElementPtr*>(instruction)->dest, varsInitialised);
-                varsInitialised++;
+                if (dynamic_cast<GetElementPtr*>(instruction)->dest.at(0) == '%')
+                {
+                    bool found = false;
+                    for (const auto& x : functionLocalSymbolMapOnStack)
+                        if (x.first == dynamic_cast<GetElementPtr*>(instruction)->dest)
+                            found = true;
+                    if (!found) {
+                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<GetElementPtr*>(instruction)->dest, varsInitialised);
+                        varsInitialised++;
+                    }
+                }
                 break;
             }
             case AVMInstructionType::CMP: {
-                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ComparisonInstruction*>(instruction)->dest, varsInitialised);
-                varsInitialised++;
+                if (dynamic_cast<ComparisonInstruction*>(instruction)->dest.at(0) == '%')
+                {
+                    bool found = false;
+                    for (const auto& x : functionLocalSymbolMapOnStack)
+                        if (x.first == dynamic_cast<ComparisonInstruction*>(instruction)->dest)
+                            found = true;
+                    if (!found) {
+                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ComparisonInstruction*>(instruction)->dest, varsInitialised);
+                        varsInitialised++;
+                    }
+                }
                 break;
             }
             case AVMInstructionType::BRANCH: {
@@ -129,15 +175,36 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
                 break;
             }
             case AVMInstructionType::CALL: {
-                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<CallInstruction*>(instruction)->returnVal, varsInitialised);
-                varsInitialised++;
+                if (dynamic_cast<CallInstruction*>(instruction)->returnVal.at(0) == '%')
+                {
+                    bool found = false;
+                    for (const auto& x : functionLocalSymbolMapOnStack)
+                        if (x.first == dynamic_cast<CallInstruction*>(instruction)->returnVal)
+                            found = true;
+                    if (!found) {
+                        functionLocalSymbolMapOnStack.emplace_back(
+                                dynamic_cast<CallInstruction *>(instruction)->returnVal,
+                                varsInitialised);
+                        varsInitialised++;
+                    }
+                }
                 break;
             }
             case AVMInstructionType::RET:
                 break;
             case AVMInstructionType::MV: {
-                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<MoveInstruction*>(instruction)->dest, varsInitialised);
-                varsInitialised++;
+                if (dynamic_cast<MoveInstruction*>(instruction)->dest.at(0) == '%')
+                {
+                    bool found = false;
+                    for (const auto& x : functionLocalSymbolMapOnStack)
+                        if (x.first == dynamic_cast<MoveInstruction*>(instruction)->dest)
+                            found = true;
+                    if (!found) {
+                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<MoveInstruction *>(instruction)->dest,
+                                                                   varsInitialised);
+                        varsInitialised++;
+                    }
+                }
                 break;
             }
             case AVMInstructionType::ALLOCA:
@@ -151,6 +218,11 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
                 break;
         }
     }
+    for (auto incomingParameter : function->incomingSymbols)
+    {
+        functionLocalSymbolMapOnStack.emplace_back(incomingParameter->identifier, varsInitialised);
+        varsInitialised++;
+    }
     // treat each as u64,
     // finding out stack size,
     u8 stackSize = 0;
@@ -160,11 +232,35 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     // Need to do this as stack pointer **MUST** be 16-byte aligned
     assemblyFile << Prologue(stackSize);
     regAllocInit(function);
+    stackSizeForEpilogue = stackSize;
+    epilogueUsed = false;
     for (auto it : function->basicBlocksInFunction)
     {
         assemblyFile << it->label << ":\n";
         if (it->label == "entry")
         {
+            // Initialise parameters
+            auto x = 0;
+            std::vector<Register> argumentRegisters{
+                Register::X0, Register::X1, Register::X2, Register::X3, Register::X4, Register::X5, Register::X6, Register::X7
+            };
+            for (auto incomingSymbols : function->incomingSymbols)
+            {
+                u32 idx = 0;
+                for (const auto& var : functionLocalSymbolMapOnStack)
+                {
+                    if (var.first == incomingSymbols->identifier)
+                        idx = var.second*8;
+                }
+                std::string storeInstruction;
+                storeInstruction.append("\tstr ");
+                storeInstruction.append(regToString(argumentRegisters.at(x)));
+                storeInstruction.append(", [sp, #");
+                storeInstruction.append(std::to_string(idx));
+                storeInstruction.append("]\n");
+                assemblyFile << storeInstruction;
+                x++;
+            }
                 for (auto ins : it->sequenceOfInstructions) // initialise local variables
                 {
                     if (ins->getInstructionType() != AVMInstructionType::ALLOCA)
@@ -198,13 +294,17 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
                         }
                     init.append(std::to_string(8*idxStack));
                     init.append("] // store initial value \n");
+                    // Save parameters
+
 
                     assemblyFile << init;
             }
+
         }
         convertBasicBlockToASM(it);
     }
-    assemblyFile << Epilogue(stackSize);
+    if (!epilogueUsed)
+        assemblyFile << Epilogue(stackSize);
 }
 
 std::string CodeGenerator::Prologue(u32 stackSize) {
@@ -264,7 +364,7 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
             case AVMInstructionType::LOAD: {
                 auto loadInstruction = dynamic_cast<LoadMemoryInstruction*>(it);
                 std::string temp{};
-                temp.append("ldr ");
+                temp.append("\tldr ");
                 temp.append(regToString(allocRegister(loadInstruction->dest)));
                 temp.append(", ");
                 temp.append(regToString(findVariable(loadInstruction->addrVar)));
@@ -280,6 +380,7 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
             case AVMInstructionType::GEP: {
                 auto gepInstruction = dynamic_cast<GetElementPtr*>(it);
                 std::string temp{};
+                bool found = false;
                 for (const auto& symbol : functionLocalSymbolMapOnStack)
                 {
                     if (symbol.first == gepInstruction->src)
@@ -289,6 +390,24 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                         temp.append(regToString(allocRegister(gepInstruction->dest)));
                         temp.append(", sp, #");
                         temp.append(std::to_string(offset));
+                        temp.append("\n");
+                        assemblyFile << temp;
+                        saveVariable(gepInstruction->dest);
+                        freeRegs();
+                        found = true;
+                    }
+                }
+                if (!found)
+                {
+                    if (gepInstruction->src.at(0) == '!')
+                    {
+                        temp.append("\tldr ");
+                        temp.append(regToString(allocRegister(gepInstruction->dest)));
+                        temp.append(", =");
+                        std::string label;
+                        label = gepInstruction->src;
+                        label.erase(0, 1);
+                        temp.append(label);
                         temp.append("\n");
                         assemblyFile << temp;
                         saveVariable(gepInstruction->dest);
@@ -340,6 +459,9 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 moveInstruction.append("\tmov x0, ");
                 moveInstruction.append(regToString(findVariable(returnInstruction->value)));
                 assemblyFile << moveInstruction << "\n";
+                if (!epilogueUsed)
+                    assemblyFile << Epilogue(stackSizeForEpilogue);
+                epilogueUsed = true;
                 assemblyFile << "\tret\n";
                 break;
             }
