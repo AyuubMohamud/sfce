@@ -61,6 +61,7 @@ CodeGenerator::~CodeGenerator() {
 }
 
 void CodeGenerator::startFinalTranslation() {
+    assemblyFile << ".data" << "\n";
     for (auto it : virtualMachine.globalSyms)
     {
         std::string temp;
@@ -88,6 +89,18 @@ void CodeGenerator::startFinalTranslation() {
 #pragma ide diagnostic ignored "NullDereference"
         assemblyFile << temp;
 #pragma clang diagnostic pop
+    }
+    assemblyFile << ".text" << "\n";
+    for (auto globalSymbol : virtualMachine.globalSyms)
+    {
+
+        if (!(globalSymbol->type->isPtr()||globalSymbol->type->isNumVar())) {
+            std::string temp{};
+            temp.append(".globl ");
+            temp.append(globalSymbol->identifier);
+            temp.append("\n");
+            assemblyFile << temp;
+        }
     }
     for (auto it : virtualMachine.compilationUnit)
     {
@@ -236,7 +249,8 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     epilogueUsed = false;
     for (auto it : function->basicBlocksInFunction)
     {
-        assemblyFile << it->label << ":\n";
+        if (it->label != "entry")
+            assemblyFile << it->label << ":\n";
         if (it->label == "entry")
         {
             // Initialise parameters

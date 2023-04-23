@@ -44,6 +44,7 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
                 pos = scope->findRegularSymbol(it);
                 if (pos == -1 && it.at(0) != '#')
                     return true;
+                else if (pos == -1 && it.at(0))
                 syms.push_back(parserState.globalSymbolTable.at(pos));
             }
             bool error = false;
