@@ -156,9 +156,9 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     u8 stackSize = 0;
     u8 divisionRes = (varsInitialised*8) / 16;
     u8 remainder = ((varsInitialised*8)%16)/8;
-    stackSize = roundUp(varsInitialised*8)/16;
+    stackSize = roundUp(varsInitialised*8);
     // Need to do this as stack pointer **MUST** be 16-byte aligned
-    assemblyFile << Preparation(stackSize);
+    assemblyFile << Prologue(stackSize);
     regAllocInit(function);
     for (auto it : function->basicBlocksInFunction)
     {
@@ -204,12 +204,12 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
         }
         convertBasicBlockToASM(it);
     }
-
+    assemblyFile << Epilogue(stackSize);
 }
 
-std::string CodeGenerator::Preparation(u8 stackSize) {
+std::string CodeGenerator::Prologue(u32 stackSize) {
     std::string prelim{};
-    u16 stackAllocSize = (stackSize*16) + 16;
+    u16 stackAllocSize = (stackSize) + 16;
     prelim.append("\tsub sp, sp, #");
     prelim.append(std::to_string(stackAllocSize));
     prelim.append(" // Allocate stack space \n\tstp x29, x30, [sp, #");
@@ -420,4 +420,14 @@ Register CodeGenerator::allocRegister(std::string identifier) {
 void CodeGenerator::regAllocInit(AVMFunction *function) {
     freeRegs();
 }
-
+std::string CodeGenerator::Epilogue(u32 stackSize)
+{
+    std::string tmp;
+    tmp.append("\tldp x29, x30, [sp, #");
+    tmp.append(std::to_string(stackSize));
+    tmp.append("]\n");
+    tmp.append("\tadd sp, sp, #");
+    tmp.append(std::to_string(stackSize+16));
+    tmp.append("\n");
+    return tmp;
+}

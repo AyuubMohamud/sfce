@@ -52,7 +52,7 @@ private:
     std::unordered_map<std::string, std::pair<u64,u64>> liveRanges;
     std::queue<Register> freeRegisters;
 
-    std::string Preparation(u8 stackSize);
+    std::string Prologue(u32 stackSize);
 
     Register findVariable(std::string);
     Register allocRegister(std::string);
@@ -61,4 +61,6 @@ private:
     void freeRegs();
 
     void saveVariable(const std::string& identifier);
+
+    std::string Epilogue(u32 stackSize);
 };
