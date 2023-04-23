@@ -322,19 +322,8 @@ public:
     bool startSemanticAnalysis(CParse &parserState);
 
     CType *normaliseTypes(CType *LHS, CType *RHS) const;
-    std::vector<std::string> genArgs(ASTNode* argNode)
-    {
-        if (argNode == nullptr)
-            return {};
-        std::vector<std::string> temp;
-        if (argNode->op == A_GLUE)
-            temp.push_back(argNode->left->identifier);
-        else
-            temp.push_back(argNode->identifier);
-        auto genArgs2 = genArgs(argNode->right);
-        temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
-        return temp;
-    }
+    std::vector<CType *> genArgs(CParse& parserState, ASTNode* argNode);
+
 };
 enum class AVMOpcode {
     // Arithmetic class
@@ -677,9 +666,9 @@ public:
             return {};
         std::vector<std::string> temp;
         if (argNode->op == A_GLUE)
-            temp.push_back(argNode->left->identifier);
+            temp.push_back(genCode(argNode->left));
         else
-            temp.push_back(argNode->identifier);
+            temp.push_back(genCode(argNode));
         auto genArgs2 = genArgs(argNode->right);
         temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
         return temp;

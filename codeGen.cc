@@ -46,10 +46,21 @@ std::unordered_map<AVMOpcode, std::string> AVMtoARMv8 {
         {AVMOpcode::XOR, "eor"},
         {AVMOpcode::ORR, "orr"}
 };
-
+std::unordered_map<CMPCode, std::string> AVMCMPCodetoARMv8 {
+        {CMPCode::EQ, "eq"},
+        {CMPCode::NEQ, "ne"},
+        {CMPCode::LT, "lo"},
+        {CMPCode::MT, "hi"},
+        {CMPCode::LTEQ, "ls"},
+        {CMPCode::MTEQ, "hs"}
+};
 std::string regToString(Register registerName)
 {
     return regToStringMap[registerName];
+}
+std::string cmpCodeToString(CMPCode code)
+{
+    return AVMCMPCodetoARMv8[code];
 }
 CodeGenerator::CodeGenerator(AVM &virtualMachineState, std::string fileName)
         : virtualMachine(virtualMachineState) {
@@ -345,12 +356,6 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
     for (auto x = 0; x < basicBlock->sequenceOfInstructions.size(); x++)
     {
         auto it = basicBlock->sequenceOfInstructions.at(x);
-        if (it->getInstructionType() == AVMInstructionType::BRANCH)
-        {
-
-            break;
-        }
-
         switch (it->getInstructionType())
         {
             case AVMInstructionType::ARITHMETIC: {
@@ -407,7 +412,6 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                         temp.append("\n");
                         assemblyFile << temp;
                         saveVariable(gepInstruction->dest);
-                        freeRegs();
                         found = true;
                     }
                 }
@@ -425,13 +429,31 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                         temp.append("\n");
                         assemblyFile << temp;
                         saveVariable(gepInstruction->dest);
-                        freeRegs();
                     }
                 }
+                freeRegs();
                 break;
             }
             case AVMInstructionType::CMP:
+            {
+                auto comparisonInstruction = dynamic_cast<ComparisonInstruction*>(it);
+                std::string comparison{};
+                comparison.append("\tcmp ");
+                comparison.append(regToString(findVariable(comparisonInstruction->op1)));
+                comparison.append(", ");
+                comparison.append(regToString(findVariable(comparisonInstruction->op2)));
+                comparison.append("\n");
+                assemblyFile << comparison;
+                std::string cselInstruction;
+                cselInstruction.append("\tcinv ");
+                cselInstruction.append(regToString(allocRegister(comparisonInstruction->dest)));
+                cselInstruction.append(", xzr, ");
+                cselInstruction.append(cmpCodeToString(comparisonInstruction->compareCode));
+                assemblyFile << cselInstruction << "\n";
+                saveVariable(comparisonInstruction->dest);
+                freeRegs();
                 break;
+            }
             case AVMInstructionType::CALL:
             {
                 auto callInstruction = dynamic_cast<CallInstruction*>(it);
@@ -455,7 +477,6 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                     temp.append(regToString(findVariable(symbol)));
                     temp.append("\n");
                     assemblyFile << temp;
-                    freeRegs();
                     cursor++;
                 }
                 std::string functionName;
@@ -473,8 +494,7 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 moveInstruction.append("\tmov x0, ");
                 moveInstruction.append(regToString(findVariable(returnInstruction->value)));
                 assemblyFile << moveInstruction << "\n";
-                if (!epilogueUsed)
-                    assemblyFile << Epilogue(stackSizeForEpilogue);
+                assemblyFile << Epilogue(stackSizeForEpilogue);
                 epilogueUsed = true;
                 assemblyFile << "\tret\n";
                 break;
@@ -491,6 +511,18 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 saveVariable(moveInstruction->dest);
                 freeRegs();
                 break;
+            }
+            case AVMInstructionType::BRANCH:
+            {
+                auto branchInstruction = dynamic_cast<BranchInstruction*>(it);
+                std::string cmp;
+                cmp.append("\tcmp ");
+                cmp.append(regToString(findVariable(branchInstruction->dependantComparison)));
+                cmp.append(", #1\n");
+                cmp.append("\tb.eq ");
+                cmp.append(branchInstruction->trueTarget);
+                assemblyFile << cmp << "\n";
+                freeRegs();
             }
             default:
                 break;
@@ -533,6 +565,15 @@ void CodeGenerator::freeRegs() {
     if (freeRegisters.empty()) {
         freeRegisters.push(Register::X9);
         freeRegisters.push(Register::X10);
+    }
+    else if (freeRegisters.size() == 1)
+    {
+        if (freeRegisters.front() == Register::X9) {
+            freeRegisters.push(Register::X10);
+        }
+        else {
+            freeRegisters.push(Register::X9);
+        }
     }
 }
 void CodeGenerator::saveVariable(const std::string& identifier) {

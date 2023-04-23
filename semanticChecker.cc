@@ -34,26 +34,17 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
             if (funcSym->type->isPtr() || funcSym->type->isNumVar())
                 return true;
 
-            std::vector<std::string> arguments = genArgs(node->right);
+            std::vector<CType*> arguments = genArgs(parserState, node->right);
             auto* calleePrototype = dynamic_cast<FunctionPrototype*>(funcSym->type->declaratorPartList.at(1));
             if (arguments.size() != calleePrototype->types.size())
                 return true;
-            std::vector<Symbol*> syms;
-            for (const auto& it : arguments)
-            {
-                pos = scope->findRegularSymbol(it);
-                if (pos == -1 && it.at(0) != '#')
-                    return true;
-                else if (pos == -1 && it.at(0))
-                syms.push_back(parserState.globalSymbolTable.at(pos));
-            }
             bool error = false;
-            for (auto i = 0; i < syms.size(); i++)
+            for (auto i = 0; i < arguments.size(); i++)
             {
-                auto* symbol1 = syms.at(i);
+                auto* symbol1 = arguments.at(i);
                 auto* symbol2 = calleePrototype->types.at(i);
                 bool sym2isPtr = symbol2->type->isPtr();
-                bool ok = symbol1->type->isEqual(symbol2->type, !(symbol1->type->isPtr()||symbol2->type->isPtr()));
+                bool ok = symbol1->isEqual(symbol2->type, !(symbol1->isPtr()||symbol2->type->isPtr()));
                 if (!ok)
                     return true;
             }
@@ -267,4 +258,18 @@ CType* SemanticAnalyser::evalType(CParse& parserState, ASTNode *expr) {
         return parserState.globalSymbolTable[pos]->type;
     }
     return nullptr;
+}
+
+std::vector<CType *> SemanticAnalyser::genArgs(CParse &parserState, ASTNode *argNode) {
+        if (argNode == nullptr)
+            return {};
+        std::vector<CType*> temp;
+        if (argNode->op == A_GLUE)
+            temp.push_back(evalType(parserState, argNode->left));
+        else
+            temp.push_back(evalType(parserState, argNode));
+        auto genArgs2 = genArgs(parserState, argNode->right);
+        temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
+        return temp;
+
 }
