@@ -285,6 +285,24 @@ std::vector<CType *> SemanticAnalyser::genArgs(CParse &parserState, ASTNode *arg
         std::vector<CType*> temp;
         if (argNode->op == A_GLUE)
             temp.push_back(evalType(parserState, argNode->left));
+        else if (argNode->op == A_CALL)
+        {
+            auto* type = evalType(parserState, argNode->left);
+            if (type->declaratorPartList.size() > 1)
+            {
+                auto* copyType = new CType;
+                copyType->typeSpecifier = type->typeSpecifier;
+                for (auto x : type->declaratorPartList)
+                {
+                    if (x->getDPT() != FUNC)
+                    {
+                        copyType->declaratorPartList.push_back(x);
+                    }
+                }
+                temp.push_back(copyType);
+            }
+            return temp;
+        }
         else
             temp.push_back(evalType(parserState, argNode));
         auto genArgs2 = genArgs(parserState, argNode->right);

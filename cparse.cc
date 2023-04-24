@@ -1591,6 +1591,11 @@ void CType::copy(CType* x) {
                 auto* funcProto2 = new FunctionPrototype;
                 FunctionPrototype funcProto = *(dynamic_cast<FunctionPrototype*>(i));
                 funcProto2->scope = funcProto.scope;
+                funcProto2->scope->parent = funcProto.scope->parent;
+                for (const auto& it : funcProto.scope->rst.SymbolHashMap)
+                {
+                    funcProto2->scope->rst.SymbolHashMap[it.first] = it.second;
+                }
                 funcProto2->types = funcProto.types;
                 funcProto2->doNotDeleteScope = true;
                 x->declaratorPartList.push_back(funcProto2);
