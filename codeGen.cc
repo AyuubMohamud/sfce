@@ -260,8 +260,15 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     epilogueUsed = false;
     for (auto it : function->basicBlocksInFunction)
     {
-        if (it->label != "entry")
-            assemblyFile << it->label << ":\n";
+        if (it->label != "entry") {
+            std::string tmp;
+            tmp = it->label;
+            if (tmp.at(0)== '@')
+            {
+                tmp.erase(0, 1);
+            }
+            assemblyFile << tmp << ":\n";
+        }
         if (it->label == "entry")
         {
             // Initialise parameters
@@ -515,13 +522,27 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
             case AVMInstructionType::BRANCH:
             {
                 auto branchInstruction = dynamic_cast<BranchInstruction*>(it);
-                std::string cmp;
-                cmp.append("\tcmp ");
-                cmp.append(regToString(findVariable(branchInstruction->dependantComparison)));
-                cmp.append(", #1\n");
-                cmp.append("\tb.eq ");
-                cmp.append(branchInstruction->trueTarget);
-                assemblyFile << cmp << "\n";
+                if (branchInstruction->falseTarget != "NULL") {
+                    std::string cmp;
+                    cmp.append("\tcmp ");
+                    cmp.append(regToString(findVariable(branchInstruction->dependantComparison)));
+                    cmp.append(", #1\n");
+                    cmp.append("\tb.ne ");
+                    std::string tmp = branchInstruction->falseTarget;
+                    tmp.erase(0, 1);
+                    cmp.append(tmp);
+                    assemblyFile << cmp << "\n";
+                }
+                else {
+                    std::string unconditionalBranch;
+                    unconditionalBranch.append("\tb ");
+                    std::string tmp = branchInstruction->trueTarget;
+                    if (tmp.at(0) == '@')
+                        tmp.erase(0, 1);
+                    unconditionalBranch.append(tmp);
+                    unconditionalBranch.append("\n");
+                    assemblyFile << unconditionalBranch;
+                }
                 freeRegs();
             }
             default:

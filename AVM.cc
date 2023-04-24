@@ -3,6 +3,7 @@
 #include <errorHandler.hh>
 #include <numeric>
 #include <cmath>
+#include <bit>
 
 /*
  *
@@ -445,7 +446,7 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
 
 bool isPowerOfTwo(u64 val)
 {
-    return std::__popcount(val) == 1;
+    return std::popcount(val) == 1;
 }
 /*
  * void avmOptimiseFunction
