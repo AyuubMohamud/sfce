@@ -339,8 +339,8 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
         }
         convertBasicBlockToASM(it);
     }
-    if (!epilogueUsed)
-        assemblyFile << Epilogue(stackSize);
+
+        assemblyFile << Epilogue(stackSize) << "\tret\n";
 }
 
 std::string CodeGenerator::Prologue(u32 stackSize) {

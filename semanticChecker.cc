@@ -303,8 +303,10 @@ std::vector<CType *> SemanticAnalyser::genArgs(CParse &parserState, ASTNode *arg
             }
             return temp;
         }
-        else
+        else {
             temp.push_back(evalType(parserState, argNode));
+            return temp;
+        }
         auto genArgs2 = genArgs(parserState, argNode->right);
         temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
         return temp;
