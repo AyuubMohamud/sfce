@@ -95,7 +95,7 @@ void deleteVecOfPtrs(std::vector<Symbol*>* ptrs)
 }
 bool isTypeSpecifier(const Token& token)
 {
-    if ((token.token == INTEGER) || (token.token == CHAR) || (token.token == SHORT) || (token.token == VOID))
+    if ((token.token == INTEGER) || (token.token == CHAR) || (token.token == SHORT) || (token.token == VOID) || (token.token == UNSIGNED) || (token.token == SIGNED) || (token.token == LONG))
     {
         return true;
     }
@@ -326,11 +326,15 @@ bool CParse::combinable(CType *cType, const Token& token)
         case SHORT:
         case CHAR:
         case VOID:
+        case UNSIGNED:
+        case SIGNED:
+        case LONG:
+        case CONST:
         case INTEGER: {
             bool conflictingTypeFound = false;
             for (auto& i: cType->typeSpecifier)
             {
-                if (i.token == CHAR || i.token == SHORT || i.token == INTEGER || i.token == VOID) // Add floating point types as well
+                if (i.token == CHAR || i.token == SHORT || i.token == INTEGER || i.token == VOID || i.token == LONG) // Add floating point types as well
                     conflictingTypeFound = true;
             }
             if (conflictingTypeFound) {
@@ -1500,9 +1504,6 @@ bool CType::isEqual(CType *otherType, bool ptrOrNum) {
         return true;
     }
 
-    if (token.token != token2.token && !ptrOrNum) {
-        return false;
-    }
 
     //if (otherType->declaratorPartList.size() != declaratorPartList.size())
     //    return false;
