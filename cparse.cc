@@ -413,7 +413,6 @@ ASTNode* CParse::blockItemList() {
     auto* blockItemListNode = blockItemList();
     if (blockItemListNode == nullptr)
     {
-        printf("Oops!\n");
         delete glueNode;
         delete blockItemNode;
         return nullptr;

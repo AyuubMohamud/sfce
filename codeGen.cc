@@ -133,113 +133,117 @@ void CodeGenerator::convertFunctionToASM(AVMFunction *function) {
     bool finished = false;
     std::vector<AllocaInstruction*> allocations;
     int varsInitialised = 0;
-    for (auto* instruction : function->basicBlocksInFunction.at(0)->sequenceOfInstructions) {
-        switch (instruction->getInstructionType()) {
-            case AVMInstructionType::ARITHMETIC: {
-                if (dynamic_cast<ArithmeticInstruction*>(instruction)->dest.at(0) == '%')
-                {
-                    bool found = false;
-                    for (const auto& x : functionLocalSymbolMapOnStack)
-                        if (x.first == dynamic_cast<ArithmeticInstruction*>(instruction)->dest)
-                            found = true;
-                    if (!found) {
-                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ArithmeticInstruction*>(instruction)->dest, varsInitialised);
-                        varsInitialised++;
-                    }
-                }
-                break;
-            }
-            case AVMInstructionType::LOAD: {
-                if (dynamic_cast<LoadMemoryInstruction*>(instruction)->dest.at(0) == '%')
-                {
-                    bool found = false;
-                    for (const auto& x : functionLocalSymbolMapOnStack)
-                        if (x.first == dynamic_cast<LoadMemoryInstruction*>(instruction)->dest)
-                            found = true;
-                    if (!found) {
-                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<LoadMemoryInstruction*>(instruction)->dest, varsInitialised);
-                        varsInitialised++;
-                    }
-                }
-                break;
-            }
-            case AVMInstructionType::STORE:
-                break;
-            case AVMInstructionType::GEP:
-            {
-                if (dynamic_cast<GetElementPtr*>(instruction)->dest.at(0) == '%')
-                {
-                    bool found = false;
-                    for (const auto& x : functionLocalSymbolMapOnStack)
-                        if (x.first == dynamic_cast<GetElementPtr*>(instruction)->dest)
-                            found = true;
-                    if (!found) {
-                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<GetElementPtr*>(instruction)->dest, varsInitialised);
-                        varsInitialised++;
-                    }
-                }
-                break;
-            }
-            case AVMInstructionType::CMP: {
-                if (dynamic_cast<ComparisonInstruction*>(instruction)->dest.at(0) == '%')
-                {
-                    bool found = false;
-                    for (const auto& x : functionLocalSymbolMapOnStack)
-                        if (x.first == dynamic_cast<ComparisonInstruction*>(instruction)->dest)
-                            found = true;
-                    if (!found) {
-                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ComparisonInstruction*>(instruction)->dest, varsInitialised);
-                        varsInitialised++;
-                    }
-                }
-                break;
-            }
-            case AVMInstructionType::BRANCH: {
 
-                break;
-            }
-            case AVMInstructionType::CALL: {
-                if (dynamic_cast<CallInstruction*>(instruction)->returnVal.at(0) == '%')
-                {
-                    bool found = false;
-                    for (const auto& x : functionLocalSymbolMapOnStack)
-                        if (x.first == dynamic_cast<CallInstruction*>(instruction)->returnVal)
-                            found = true;
-                    if (!found) {
-                        functionLocalSymbolMapOnStack.emplace_back(
-                                dynamic_cast<CallInstruction *>(instruction)->returnVal,
-                                varsInitialised);
-                        varsInitialised++;
+    for (auto* basicBlock : function->basicBlocksInFunction)
+    {
+        for (auto* instruction : basicBlock->sequenceOfInstructions) {
+            switch (instruction->getInstructionType()) {
+                case AVMInstructionType::ARITHMETIC: {
+                    if (dynamic_cast<ArithmeticInstruction*>(instruction)->dest.at(0) == '%')
+                    {
+                        bool found = false;
+                        for (const auto& x : functionLocalSymbolMapOnStack)
+                            if (x.first == dynamic_cast<ArithmeticInstruction*>(instruction)->dest)
+                                found = true;
+                        if (!found) {
+                            functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ArithmeticInstruction*>(instruction)->dest, varsInitialised);
+                            varsInitialised++;
+                        }
                     }
+                    break;
                 }
-                break;
-            }
-            case AVMInstructionType::RET:
-                break;
-            case AVMInstructionType::MV: {
-                if (dynamic_cast<MoveInstruction*>(instruction)->dest.at(0) == '%')
-                {
-                    bool found = false;
-                    for (const auto& x : functionLocalSymbolMapOnStack)
-                        if (x.first == dynamic_cast<MoveInstruction*>(instruction)->dest)
-                            found = true;
-                    if (!found) {
-                        functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<MoveInstruction *>(instruction)->dest,
-                                                                   varsInitialised);
-                        varsInitialised++;
+                case AVMInstructionType::LOAD: {
+                    if (dynamic_cast<LoadMemoryInstruction*>(instruction)->dest.at(0) == '%')
+                    {
+                        bool found = false;
+                        for (const auto& x : functionLocalSymbolMapOnStack)
+                            if (x.first == dynamic_cast<LoadMemoryInstruction*>(instruction)->dest)
+                                found = true;
+                        if (!found) {
+                            functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<LoadMemoryInstruction*>(instruction)->dest, varsInitialised);
+                            varsInitialised++;
+                        }
                     }
+                    break;
                 }
-                break;
+                case AVMInstructionType::STORE:
+                    break;
+                case AVMInstructionType::GEP:
+                {
+                    if (dynamic_cast<GetElementPtr*>(instruction)->dest.at(0) == '%')
+                    {
+                        bool found = false;
+                        for (const auto& x : functionLocalSymbolMapOnStack)
+                            if (x.first == dynamic_cast<GetElementPtr*>(instruction)->dest)
+                                found = true;
+                        if (!found) {
+                            functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<GetElementPtr*>(instruction)->dest, varsInitialised);
+                            varsInitialised++;
+                        }
+                    }
+                    break;
+                }
+                case AVMInstructionType::CMP: {
+                    if (dynamic_cast<ComparisonInstruction*>(instruction)->dest.at(0) == '%')
+                    {
+                        bool found = false;
+                        for (const auto& x : functionLocalSymbolMapOnStack)
+                            if (x.first == dynamic_cast<ComparisonInstruction*>(instruction)->dest)
+                                found = true;
+                        if (!found) {
+                            functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<ComparisonInstruction*>(instruction)->dest, varsInitialised);
+                            varsInitialised++;
+                        }
+                    }
+                    break;
+                }
+                case AVMInstructionType::BRANCH: {
+
+                    break;
+                }
+                case AVMInstructionType::CALL: {
+                    if (dynamic_cast<CallInstruction*>(instruction)->returnVal.at(0) == '%')
+                    {
+                        bool found = false;
+                        for (const auto& x : functionLocalSymbolMapOnStack)
+                            if (x.first == dynamic_cast<CallInstruction*>(instruction)->returnVal)
+                                found = true;
+                        if (!found) {
+                            functionLocalSymbolMapOnStack.emplace_back(
+                                    dynamic_cast<CallInstruction *>(instruction)->returnVal,
+                                    varsInitialised);
+                            varsInitialised++;
+                        }
+                    }
+                    break;
+                }
+                case AVMInstructionType::RET:
+                    break;
+                case AVMInstructionType::MV: {
+                    if (dynamic_cast<MoveInstruction*>(instruction)->dest.at(0) == '%')
+                    {
+                        bool found = false;
+                        for (const auto& x : functionLocalSymbolMapOnStack)
+                            if (x.first == dynamic_cast<MoveInstruction*>(instruction)->dest)
+                                found = true;
+                        if (!found) {
+                            functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<MoveInstruction *>(instruction)->dest,
+                                                                       varsInitialised);
+                            varsInitialised++;
+                        }
+                    }
+                    break;
+                }
+                case AVMInstructionType::ALLOCA:
+                {
+                    allocations.push_back(dynamic_cast<AllocaInstruction*>(instruction));
+                    functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<AllocaInstruction*>(instruction)->target, varsInitialised);
+                    varsInitialised++;
+                    break;
+                }
+                case AVMInstructionType::END:
+                    break;
             }
-            case AVMInstructionType::ALLOCA:
-            {
-                allocations.push_back(dynamic_cast<AllocaInstruction*>(instruction));
-                functionLocalSymbolMapOnStack.emplace_back(dynamic_cast<AllocaInstruction*>(instruction)->target, varsInitialised);
-                varsInitialised++;
-                break;
-            }
-            case AVMInstructionType::END:
-                break;
         }
     }
     for (auto incomingParameter : function->incomingSymbols)
@@ -393,7 +397,9 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 temp.append("\tldr ");
                 temp.append(regToString(allocRegister(loadInstruction->dest)));
                 temp.append(", ");
+                temp.append("[");
                 temp.append(regToString(findVariable(loadInstruction->addrVar)));
+                temp.append("]");
                 temp.append("\n");
                 assemblyFile << temp;
                 saveVariable(loadInstruction->dest);
@@ -418,7 +424,6 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                         temp.append(std::to_string(offset));
                         temp.append("\n");
                         assemblyFile << temp;
-                        saveVariable(gepInstruction->dest);
                         found = true;
                     }
                 }
@@ -435,9 +440,10 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                         temp.append(label);
                         temp.append("\n");
                         assemblyFile << temp;
-                        saveVariable(gepInstruction->dest);
+
                     }
                 }
+                saveVariable(gepInstruction->dest);
                 freeRegs();
                 break;
             }
@@ -452,9 +458,9 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 comparison.append("\n");
                 assemblyFile << comparison;
                 std::string cselInstruction;
-                cselInstruction.append("\tcinv ");
+                cselInstruction.append("\tcsinv ");
                 cselInstruction.append(regToString(allocRegister(comparisonInstruction->dest)));
-                cselInstruction.append(", xzr, ");
+                cselInstruction.append(", xzr, xzr, ");
                 cselInstruction.append(cmpCodeToString(comparisonInstruction->compareCode));
                 assemblyFile << cselInstruction << "\n";
                 saveVariable(comparisonInstruction->dest);
@@ -526,14 +532,15 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                     std::string cmp;
                     cmp.append("\tcmp ");
                     cmp.append(regToString(findVariable(branchInstruction->dependantComparison)));
-                    cmp.append(", #1\n");
+                    cmp.append(", #0\n");
                     cmp.append("\tb.ne ");
                     std::string tmp = branchInstruction->falseTarget;
                     tmp.erase(0, 1);
                     cmp.append(tmp);
                     assemblyFile << cmp << "\n";
+                    std::string unconditionalBranch;
+
                 }
-                else {
                     std::string unconditionalBranch;
                     unconditionalBranch.append("\tb ");
                     std::string tmp = branchInstruction->trueTarget;
@@ -542,7 +549,7 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                     unconditionalBranch.append(tmp);
                     unconditionalBranch.append("\n");
                     assemblyFile << unconditionalBranch;
-                }
+
                 freeRegs();
             }
             default:
