@@ -667,13 +667,11 @@ public:
         std::vector<std::string> temp;
         if (argNode->op == A_GLUE)
             temp.push_back(genCode(argNode->left));
-        else if (argNode->op == A_CALL)
+        else
         {
             temp.push_back(genCode(argNode));
             return temp;
         }
-        else
-            temp.push_back(genCode(argNode));
         auto genArgs2 = genArgs(argNode->right);
         temp.insert(temp.end(), genArgs2.begin(), genArgs2.end());
         return temp;
