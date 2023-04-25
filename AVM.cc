@@ -165,10 +165,10 @@ std::string AVM::genCode(ASTNode *expr) {
         {
             auto* callInstruction = new CallInstruction;
             callInstruction->funcName = genCode(expr->left);
-            callInstruction->returnVal = genTmpDest();
             callInstruction->opcode = AVMOpcode::CALL;
             // treat args specially don't just gencode
             callInstruction->args = genArgs(expr->right);
+            callInstruction->returnVal = genTmpDest();
             currentBasicBlock->sequenceOfInstructions.push_back(callInstruction);
             return callInstruction->returnVal;
         }
@@ -444,6 +444,51 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
             branchInstruction->falseTarget = "NULL";
             branchInstruction->opcode = AVMOpcode::BR;
             branchInstruction->dependantComparison = "#1";
+            currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction);
+            // Jump to while condition test part
+            /*
+             * br #1 true: whileTest false: NULL
+             *
+             * whileTest:
+             * test condition
+             * br condition true: innerPartOfWhile false: nextBasicBlock
+             *
+             * innerPartOfWhile:
+             *
+             *
+             * */
+            auto* whileConditionTestBasicBlock = new AVMBasicBlock;
+            whileConditionTestBasicBlock->label = branchInstruction->trueTarget;
+            currentBasicBlock = whileConditionTestBasicBlock;
+            auto string = genCode(node->left);
+
+            auto branchInstruction2 = new BranchInstruction;
+            branchInstruction2->trueTarget = genLabel();
+            branchInstruction2->falseTarget = genLabel();
+            branchInstruction2->opcode = AVMOpcode::BR;
+            branchInstruction2->dependantComparison = string;
+            currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction2);
+
+            auto innerPartOfWhile = new AVMBasicBlock;
+            innerPartOfWhile->label = branchInstruction2->trueTarget;
+            currentBasicBlock = innerPartOfWhile;
+            genCode(node->right);
+
+            auto branchInstruction3 = new BranchInstruction;
+            branchInstruction3->trueTarget = branchInstruction->trueTarget;
+            branchInstruction3->falseTarget = "NULL";
+            branchInstruction3->dependantComparison = "#1";
+            branchInstruction3->opcode = AVMOpcode::BR;
+            innerPartOfWhile->sequenceOfInstructions.push_back(branchInstruction3);
+
+            auto* continuation = new AVMBasicBlock;
+            continuation->label = branchInstruction2->falseTarget;
+            currentBasicBlock = continuation;
+            genCode(nextBasicBlock);
+            currentFunction->basicBlocksInFunction.push_back(whileConditionTestBasicBlock);
+            currentFunction->basicBlocksInFunction.push_back(innerPartOfWhile);
+            currentFunction->basicBlocksInFunction.push_back(continuation);
+            return {};
 
         }
 

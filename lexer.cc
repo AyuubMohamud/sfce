@@ -277,7 +277,7 @@ SBCCCode Lexer::compoundExpressionHandler()
             if (peek() == '-')
             {
                 advance();
-                addToken(INCREMENT, "--");
+                addToken(DECREMENT, "--");
             }
             else if (peek() == '=')
             {
