@@ -437,6 +437,16 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
             currentFunction->basicBlocksInFunction.push_back(continuation);
             return {};
         }
+        case A_WHILEBODY:
+        {
+            auto branchInstruction = new BranchInstruction;
+            branchInstruction->trueTarget = genLabel();
+            branchInstruction->falseTarget = "NULL";
+            branchInstruction->opcode = AVMOpcode::BR;
+            branchInstruction->dependantComparison = "#1";
+
+        }
+
         default:
         {
             return {};

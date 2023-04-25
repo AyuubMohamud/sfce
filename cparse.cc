@@ -114,9 +114,9 @@ int sizeOf(std::vector<Token>& typeSpecifiers)
     bool typeHit = false;
     u64 x = 0;
     Token type;
-    while (x != (typeSpecifiers.size() - 1))
+    while (x < typeSpecifiers.size())
     {
-        if (isTypeSpecifier(typeSpecifiers[x]))
+        if (isTypeSpecifier(typeSpecifiers.at(x)))
         {
             type = typeSpecifiers[x];
             break;
@@ -660,6 +660,7 @@ ASTNode* CParse::unaryExpression() {
         {
             cursor++;
             if (tokens->at(cursor).token == OPEN_PARENTHESES) {
+                cursor++;
                 auto *node = new ASTNode;
                 auto *type = new CType;
                 bool suceess = typeName(type);
@@ -669,7 +670,7 @@ ASTNode* CParse::unaryExpression() {
                     return nullptr;
                 }
                 int sz = determineSz(type);
-                ASTNode::fillNode(node, nullptr, nullptr, false, A_LITERAL, "");
+                ASTNode::fillNode(node, nullptr, nullptr, false, A_INTLIT, std::to_string(sz));
                 node->value = sz;
                 delete type;
                 cursor++;
@@ -990,7 +991,7 @@ bool CParse::typeName(CType *ctype) {
     bool error = declarationSpecifiers(ctype);
     if (error) {return false;}
     std::vector<DeclaratorPieces*>* x = abstractDeclarator();
-    if (x == nullptr) {return false;}
+    if (x == nullptr) {return true;}
     ctype->declaratorPartList = *x;
     return true;
 }
