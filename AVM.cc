@@ -491,6 +491,51 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
             return {};
 
         }
+        case A_FORDECL:
+        {
+            auto branchInstruction = new BranchInstruction;
+            branchInstruction->trueTarget = genLabel();
+            branchInstruction->falseTarget = "NULL";
+            branchInstruction->opcode = AVMOpcode::BR;
+            branchInstruction->dependantComparison = "#1";
+            currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction);
+
+            auto forLoopConditionTest = new AVMBasicBlock;
+            forLoopConditionTest->label = branchInstruction->trueTarget;
+            currentBasicBlock = forLoopConditionTest;
+            auto string = genCode(node->right->left);
+            currentFunction->basicBlocksInFunction.push_back(forLoopConditionTest);
+
+            auto innerBranch = new BranchInstruction;
+            innerBranch->trueTarget = genLabel();
+            innerBranch->falseTarget = genLabel();
+            innerBranch->opcode = AVMOpcode::BR;
+            innerBranch->dependantComparison = string;
+            currentBasicBlock->sequenceOfInstructions.push_back(innerBranch);
+
+            auto innerPartOfLoop = new AVMBasicBlock;
+            innerPartOfLoop->label = innerBranch->trueTarget;
+            currentFunction->basicBlocksInFunction.push_back(innerPartOfLoop);
+            currentBasicBlock = innerPartOfLoop;
+            genCode(node->right->right->left);
+            genCode(node->right->right->right);
+
+
+            auto goBackToConditionTest = new BranchInstruction;
+            goBackToConditionTest->trueTarget = forLoopConditionTest->label;
+            goBackToConditionTest->opcode = AVMOpcode::BR;
+            goBackToConditionTest->falseTarget = "NULL";
+            goBackToConditionTest->dependantComparison = "#1";
+            currentBasicBlock->sequenceOfInstructions.push_back(goBackToConditionTest);
+
+            auto continuation = new AVMBasicBlock;
+            continuation->label = innerBranch->falseTarget;
+            currentBasicBlock = continuation;
+            currentFunction->basicBlocksInFunction.push_back(continuation);
+            genCode(nextBasicBlock);
+
+            return {};
+        }
 
         default:
         {
