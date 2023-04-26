@@ -109,6 +109,9 @@ bool isTypeQualifier(const Token& token)
     }
     return false;
 }
+/*
+ * returns the size of a type
+ * */
 int sizeOf(std::vector<Token>& typeSpecifiers)
 {
     bool typeHit = false;
@@ -144,18 +147,20 @@ int sizeOf(std::vector<Token>& typeSpecifiers)
         }
     }
 }
-
+/*
+ * Pointers are always treated as an 8-byte integer
+ * */
 int getPlatformPtrSz() {
     return 8;
 }
 
 int determineSz(CType* type)
 {
-    if (type->declaratorPartList.empty())
+    if (type->declaratorPartList.empty()) // if it is a numerical value return size of type
     {
         return sizeOf(type->typeSpecifier);
     }
-    if (type->declaratorPartList.at(0)->getDPT() == PTR)
+    if (type->declaratorPartList.at(0)->getDPT() == PTR) // if it is a pointer return the pointer size
     {
         return getPlatformPtrSz();
     }
@@ -290,7 +295,7 @@ bool CParse::declarationSpecifiers(CType* cType)
     {
         if (!combinable(cType, tokens->at(cursor)))
         {
-            print_error("Uncombinable");
+            print_error(tokens->at(cursor).lineNumber, "Uncombinable type");
             return true;
         }
         cType->typeSpecifier.push_back(tokens->at(cursor));
@@ -334,7 +339,7 @@ bool CParse::combinable(CType *cType, const Token& token)
             bool conflictingTypeFound = false;
             for (auto& i: cType->typeSpecifier)
             {
-                if (i.token == CHAR || i.token == SHORT || i.token == INTEGER || i.token == VOID || i.token == LONG) // Add floating point types as well
+                if (i.token == CHAR || i.token == SHORT || i.token == INTEGER || i.token == VOID || i.token == LONG) // C does not allow these type names to be repeated
                     conflictingTypeFound = true;
             }
             if (conflictingTypeFound) {
@@ -394,14 +399,10 @@ ASTNode* CParse::compoundStatement() {
 */
 ASTNode* CParse::blockItemList() {
     /*
-     * (tokens->at(cursor).token != END && tokens->at(cursor).token != CLOSE_BRACE)*/
+     * */
     if (tokens->at(cursor).token == CLOSE_BRACE)
     {
-        /*
-        auto* node = new ASTNode;
-        ASTNode::fillNode(node, nullptr, nullptr, false, A_END, "");
-        return node;
-         */
+
         auto* node = new ASTNode;
         ASTNode::fillNode(node, nullptr, nullptr, false, A_END, "");
         return node;
@@ -413,7 +414,6 @@ ASTNode* CParse::blockItemList() {
     }
     auto* glueNode = new ASTNode;
 
-    //if (tokens->at(cursor).token == CLOSE_BRACE) {printf("Super Hiya!\n"); return glueNode; }
     auto* blockItemListNode = blockItemList();
     if (blockItemListNode == nullptr)
     {

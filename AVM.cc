@@ -12,12 +12,6 @@
  *
  * */
 
-
-
-
-
-
-
 void AVM::AVMByteCodeDriver(FunctionAST* functionToBeTranslated) {
     auto* function = new AVMFunction;
     auto* funcSymbol = parserState.globalSymbolTable[functionToBeTranslated->globalSymTableIdx];
@@ -33,33 +27,7 @@ void AVM::AVMByteCodeDriver(FunctionAST* functionToBeTranslated) {
     startBasicBlockConversion(functionToBeTranslated->root);
     compilationUnit.push_back(function);
 }
-/*
-void AVM::cvtBasicBlockToAVMByteCode(ASTNode* node, AVMBasicBlock* basicBlock) {
-    AVMBasicBlock* previous = nullptr;
-    previous = currentBasicBlock;
-    currentBasicBlock = basicBlock;
-    auto res = genCode(node);
-    currentFunction->basicBlocksInFunction.push_back(basicBlock);
-    ASTNode* cNode = nullptr;
-    if (currentNode == nullptr)
-    {
-        return;
-    }
-    switch (currentNode->left->op) {
-        case A_IFDECL:
-        {
-            cNode = currentNode;
-            currentNode = currentNode->right;
-            auto* ifblocks = ifHandler(cNode->left);
-            delete ifblocks;
-            break;
-        }
-        default:
-            break;
-    }
-    currentBasicBlock = previous;
-}
-*/
+
 void AVM::startBasicBlockConversion(ASTNode* node) {
     auto* entryBasicBlock = new AVMBasicBlock;
     entryBasicBlock->label = "entry";
@@ -281,55 +249,6 @@ std::string AVM::genCode(ASTNode *expr) {
     }
     return {};
 }
-
-
-/*
-void AVM::ifHandler(ASTNode *ifDecl, ASTNode* continuation) {
-    auto* trueBasicBlock = new AVMBasicBlock;
-    auto* branchInstruction = new BranchInstruction;
-    branchInstruction->dependantComparison = genCode(ifDecl->left);
-    branchInstruction->opcode = AVMOpcode::BR;
-    branchInstruction->trueTarget = genLabel();
-    trueBasicBlock->label = branchInstruction->trueTarget;
-    currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction);
-    AVMBasicBlock* currentPath = currentBasicBlock;
-    currentBasicBlock = trueBasicBlock;
-    auto string = genCode(ifDecl->right->left);
-    currentFunction->basicBlocksInFunction.push_back(currentBasicBlock);
-    if (string == "IF") // this is the result of a nested if statement
-    {
-        ifHandler(ifDecl->right->left, ifDecl->right->right);
-    }
-    branchInstruction->falseTarget = genLabel();
-    auto* falseBasicBlock = new AVMBasicBlock;
-    falseBasicBlock->label = branchInstruction->falseTarget;
-    currentBasicBlock = falseBasicBlock;
-    if (ifDecl->right->right != nullptr)
-    {
-        string = genCode(ifDecl->right->right);
-        currentFunction->basicBlocksInFunction.push_back(currentBasicBlock);
-        if (string == "IF") // this is the result of a nested if statement
-        {
-            ifHandler(ifDecl->right->right, nullptr);
-        }
-    }
-    if (continuation == nullptr)
-        return;
-    auto* continuationBasicBlock = new AVMBasicBlock;
-    auto* jmpToContinuationBasicBlock = new BranchInstruction;
-    jmpToContinuationBasicBlock->falseTarget = "NULL";
-    jmpToContinuationBasicBlock->opcode = AVMOpcode::BR;
-    jmpToContinuationBasicBlock->dependantComparison = "#1";
-    jmpToContinuationBasicBlock->trueTarget = genLabel();
-    continuationBasicBlock->label = jmpToContinuationBasicBlock->trueTarget;
-    currentBasicBlock = continuationBasicBlock;
-    genCode(continuation);
-    currentFunction->basicBlocksInFunction.push_back(continuationBasicBlock);
-    trueBasicBlock->sequenceOfInstructions.push_back(jmpToContinuationBasicBlock);
-    falseBasicBlock->sequenceOfInstructions.push_back(jmpToContinuationBasicBlock);
-}
-*/
-
 
 AVM::AVM(CParse &parserState) : parserState(parserState) {
     for (const auto& i : parserState.currentScope->rst.SymbolHashMap)
@@ -560,13 +479,6 @@ void AVM::avmOptimiseFunction(AVMFunction* function) {
         optDivToShift(it);
         optFoldConstants(it);
     }
-    //optPropagateConstants(function);
-    //for (auto it : function->basicBlocksInFunction)
-    //{
-        //optMulToShift(it);
-        //optDivToShift(it);
-        //optFoldConstants(it);
-    //}
 }
 /*
  * Convert multiplications where the multiplicand is a power of two into a shift,
