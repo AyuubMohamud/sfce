@@ -33,7 +33,10 @@ std::unordered_map<ASTop, AVMOpcode> ASTOperationToAVM {
         {A_SLR, AVMOpcode::SLR},
         {A_AND, AVMOpcode::AND},
         {A_XOR, AVMOpcode::XOR},
-        {A_OR, AVMOpcode::ORR}
+        {A_OR, AVMOpcode::ORR},
+        {A_LAND, AVMOpcode::AND},
+        {A_LOR, AVMOpcode::ORR},
+        {A_LNOT, AVMOpcode::NOP}
 };
 
 std::string mapOptoString(AVMOpcode op) {

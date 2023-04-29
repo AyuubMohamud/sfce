@@ -226,6 +226,14 @@ std::string AVM::genCode(ASTNode *expr) {
                 arithmeticInstruction->src1 = genCode(expr->left);
                 arithmeticInstruction->src2 = genCode(expr->right);
                 arithmeticInstruction->opcode = toAVM(expr->op);
+                if (arithmeticInstruction->opcode == AVMOpcode::NOP)
+                {
+                    if (expr->op == A_LNOT)
+                    {
+                        arithmeticInstruction->opcode = AVMOpcode::XOR;
+                        arithmeticInstruction->src2 = "18446744073709551615";
+                    }
+                }
                 arithmeticInstruction->dest = genTmpDest();
                 /*if (arithmeticInstruction->src1.at(0) == '#')
                 {
