@@ -235,13 +235,6 @@ std::string AVM::genCode(ASTNode *expr) {
                     }
                 }
                 arithmeticInstruction->dest = genTmpDest();
-                /*if (arithmeticInstruction->src1.at(0) == '#')
-                {
-                    std::string temp;
-                    temp = arithmeticInstruction->src1;
-                    arithmeticInstruction->src1 = arithmeticInstruction->src2;
-                    arithmeticInstruction->src2 = temp;
-                }*/
                 auto* tempSymbol = new Symbol;
                 tempSymbol->type = new CType;
                 tempSymbol->identifier = arithmeticInstruction->dest;
@@ -327,38 +320,24 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
                 secondBranchInstruction->trueTarget = continuation->label;
                 it->sequenceOfInstructions.push_back(secondBranchInstruction);
             }
+            auto* secondBranchInstruction = new BranchInstruction;
+            secondBranchInstruction->opcode = AVMOpcode::BR;
+            secondBranchInstruction->dependantComparison = "#1";
+            secondBranchInstruction->falseTarget = "NULL";
+            secondBranchInstruction->trueTarget = continuation->label;
             if (trueBasicBlock->sequenceOfInstructions.empty())
             {
-                auto* secondBranchInstruction = new BranchInstruction;
-                secondBranchInstruction->opcode = AVMOpcode::BR;
-                secondBranchInstruction->dependantComparison = "#1";
-                secondBranchInstruction->falseTarget = "NULL";
-                secondBranchInstruction->trueTarget = continuation->label;
+
                 trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
             }
             else if (trueBasicBlock->sequenceOfInstructions.at(trueBasicBlock->sequenceOfInstructions.size()-1)->getInstructionType() != AVMInstructionType::BRANCH) {
-                auto* secondBranchInstruction = new BranchInstruction;
-                secondBranchInstruction->opcode = AVMOpcode::BR;
-                secondBranchInstruction->dependantComparison = "#1";
-                secondBranchInstruction->falseTarget = "NULL";
-                secondBranchInstruction->trueTarget = continuation->label;
                 trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
             }
             if (falseBasicBlock->sequenceOfInstructions.empty())
             {
-                auto* secondBranchInstruction = new BranchInstruction;
-                secondBranchInstruction->opcode = AVMOpcode::BR;
-                secondBranchInstruction->dependantComparison = "#1";
-                secondBranchInstruction->falseTarget = "NULL";
-                secondBranchInstruction->trueTarget = continuation->label;
                 falseBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
             }
             else if (falseBasicBlock->sequenceOfInstructions.at(falseBasicBlock->sequenceOfInstructions.size()-1)->getInstructionType() != AVMInstructionType::BRANCH) {
-                auto* secondBranchInstruction = new BranchInstruction;
-                secondBranchInstruction->opcode = AVMOpcode::BR;
-                secondBranchInstruction->dependantComparison = "#1";
-                secondBranchInstruction->falseTarget = "NULL";
-                secondBranchInstruction->trueTarget = continuation->label;
                 falseBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
             }
             currentFunction->basicBlocksInFunction.push_back(continuation);
@@ -417,51 +396,6 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
             currentFunction->basicBlocksInFunction.push_back(continuation);
             return {};
 
-        }
-        case A_FORDECL:
-        {
-            auto branchInstruction = new BranchInstruction;
-            branchInstruction->trueTarget = genLabel();
-            branchInstruction->falseTarget = "NULL";
-            branchInstruction->opcode = AVMOpcode::BR;
-            branchInstruction->dependantComparison = "#1";
-            currentBasicBlock->sequenceOfInstructions.push_back(branchInstruction);
-
-            auto forLoopConditionTest = new AVMBasicBlock;
-            forLoopConditionTest->label = branchInstruction->trueTarget;
-            currentBasicBlock = forLoopConditionTest;
-            auto string = genCode(node->right->left);
-            currentFunction->basicBlocksInFunction.push_back(forLoopConditionTest);
-
-            auto innerBranch = new BranchInstruction;
-            innerBranch->trueTarget = genLabel();
-            innerBranch->falseTarget = genLabel();
-            innerBranch->opcode = AVMOpcode::BR;
-            innerBranch->dependantComparison = string;
-            currentBasicBlock->sequenceOfInstructions.push_back(innerBranch);
-
-            auto innerPartOfLoop = new AVMBasicBlock;
-            innerPartOfLoop->label = innerBranch->trueTarget;
-            currentFunction->basicBlocksInFunction.push_back(innerPartOfLoop);
-            currentBasicBlock = innerPartOfLoop;
-            genCode(node->right->right->left);
-            genCode(node->right->right->right);
-
-
-            auto goBackToConditionTest = new BranchInstruction;
-            goBackToConditionTest->trueTarget = forLoopConditionTest->label;
-            goBackToConditionTest->opcode = AVMOpcode::BR;
-            goBackToConditionTest->falseTarget = "NULL";
-            goBackToConditionTest->dependantComparison = "#1";
-            currentBasicBlock->sequenceOfInstructions.push_back(goBackToConditionTest);
-
-            auto continuation = new AVMBasicBlock;
-            continuation->label = innerBranch->falseTarget;
-            currentBasicBlock = continuation;
-            currentFunction->basicBlocksInFunction.push_back(continuation);
-            genCode(nextBasicBlock);
-
-            return {};
         }
 
         default:
@@ -691,85 +625,4 @@ void AVM::optFoldConstants(AVMBasicBlock* basicBlock)
             basicBlock->sequenceOfInstructions.at(index) = moveInstruction;
         }
     }
-}
-
-
-/*
- * Works on two types of instruction currently, arithmetic and move
- *
- * */
-void AVM::copyPropagation(AVMFunction* function) {
-
-}
-/*
- * All moves with constants are tabulated, then each instruction referencing one of them will be replaced by the constant
- * */
-void AVM::optPropagateConstants(AVMFunction* function)
-{
-    std::vector<std::pair<std::string, std::string>> table;
-    for (auto basicBlock : function->basicBlocksInFunction)
-    {
-        for (auto x = 0; x < basicBlock->sequenceOfInstructions.size(); x++)
-        {
-            auto instruction = basicBlock->sequenceOfInstructions.at(x);
-            if (instruction->getInstructionType() == AVMInstructionType::MV)
-            {
-                auto move = dynamic_cast<MoveInstruction*>(instruction);
-                if (move->valueToBeMoved.at(0) == '#') {
-                    table.emplace_back(move->dest, move->valueToBeMoved);
-                    basicBlock->sequenceOfInstructions.erase(basicBlock->sequenceOfInstructions.begin() + x);
-                }
-            }
-        }
-    }
-
-    // Propogate constants for arithmetics
-
-    for (auto basicBlock : function->basicBlocksInFunction)
-    {
-        for (auto instruction : basicBlock->sequenceOfInstructions)
-        {
-            switch (instruction->getInstructionType()) {
-                case AVMInstructionType::ARITHMETIC:
-                {
-                    auto arithmeticInstruction = dynamic_cast<ArithmeticInstruction*>(instruction);
-                    for (const auto& pair : table)
-                    {
-                        if (arithmeticInstruction->src1 == pair.first)
-                            arithmeticInstruction->src1 = pair.second;
-                        if (arithmeticInstruction->src2 == pair.first)
-                            arithmeticInstruction->src2 = pair.second;
-                    }
-                    break;
-                }
-                case AVMInstructionType::LOAD:
-                    break;
-                case AVMInstructionType::STORE:
-                    break;
-                case AVMInstructionType::GEP:
-                    break;
-                case AVMInstructionType::CMP:
-                    break;
-                case AVMInstructionType::BRANCH:
-                    break;
-                case AVMInstructionType::CALL:
-                    break;
-                case AVMInstructionType::RET:
-                    break;
-                case AVMInstructionType::MV: {
-                    auto moveInstruction = dynamic_cast<MoveInstruction*>(instruction);
-                    for (const auto& pair : table)
-                    {
-                        if (moveInstruction->valueToBeMoved == pair.first)
-                            moveInstruction->valueToBeMoved = pair.second;
-                    }
-                }
-                case AVMInstructionType::ALLOCA:
-                    break;
-                case AVMInstructionType::END:
-                    break;
-            }
-        }
-    }
-
 }
