@@ -320,19 +320,26 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
                 secondBranchInstruction->trueTarget = continuation->label;
                 it->sequenceOfInstructions.push_back(secondBranchInstruction);
             }
-            auto* secondBranchInstruction = new BranchInstruction;
+            {
+                auto *secondBranchInstruction = new BranchInstruction;
+                secondBranchInstruction->opcode = AVMOpcode::BR;
+                secondBranchInstruction->dependantComparison = "#1";
+                secondBranchInstruction->falseTarget = "NULL";
+                secondBranchInstruction->trueTarget = continuation->label;
+                if (trueBasicBlock->sequenceOfInstructions.empty()) {
+
+                    trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
+                } else if (trueBasicBlock->sequenceOfInstructions.at(
+                        trueBasicBlock->sequenceOfInstructions.size() - 1)->getInstructionType() !=
+                           AVMInstructionType::BRANCH) {
+                    trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
+                }
+            }
+            auto *secondBranchInstruction = new BranchInstruction;
             secondBranchInstruction->opcode = AVMOpcode::BR;
             secondBranchInstruction->dependantComparison = "#1";
             secondBranchInstruction->falseTarget = "NULL";
             secondBranchInstruction->trueTarget = continuation->label;
-            if (trueBasicBlock->sequenceOfInstructions.empty())
-            {
-
-                trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
-            }
-            else if (trueBasicBlock->sequenceOfInstructions.at(trueBasicBlock->sequenceOfInstructions.size()-1)->getInstructionType() != AVMInstructionType::BRANCH) {
-                trueBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
-            }
             if (falseBasicBlock->sequenceOfInstructions.empty())
             {
                 falseBasicBlock->sequenceOfInstructions.push_back(secondBranchInstruction);
@@ -417,9 +424,9 @@ bool isPowerOfTwo(u64 val)
 void AVM::avmOptimiseFunction(AVMFunction* function) {
     for (auto it : function->basicBlocksInFunction)
     {
-        optMulToShift(it);
-        optDivToShift(it);
-        optFoldConstants(it);
+        //optMulToShift(it);
+        //optDivToShift(it);
+        //optFoldConstants(it);
     }
 }
 /*

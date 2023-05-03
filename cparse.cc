@@ -316,7 +316,6 @@ CParse::~CParse() {
     {
         delete i;
     }
-    delete currentScope;
 }
 /*
  * init_declarator_list
