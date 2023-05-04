@@ -351,11 +351,6 @@ SBCCCode Lexer::identifiers()
     {
         literal.push_back(advance());
     }
-    if (file.eof())
-    {
-        print_error("Sudden EOF whilst determining identifier?");
-        return GeneralError;
-    }
     addToken(IDENTIFIER, literal);
     return OK;
 }

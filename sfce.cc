@@ -50,26 +50,16 @@ int main(int argc, const char** argv)
     }
     Lexer lexer(argv[1]);
     LexerResult* result = lexer.lexer();
-    if (result->returnCode == SBCCCode::FileNotPresent)
+    if (result->returnCode == SBCCCode::FileNotPresent||result->returnCode==SBCCCode::GeneralError)
     {
         return 1;
     }
-/*
-    for (auto& i : *result->TokenisedInput)
-    {
-        printf("%s, %lu\n", i.lexeme.c_str(), i.lineNumber);
-    }
-    */
     CParse parser(result->TokenisedInput);
     if (!parser.parse()) {print_error("Error whilst parsing!"); return 1;}
 
     SemanticAnalyser analyser;
     bool success = analyser.startSemanticAnalysis(parser);
-    if (success)
-    {
-        printf("Semantically OK translation unit, proceeding to produce code!\n");
-    }
-    else {
+    if (!success) {
         return 1;
     }
 
@@ -83,20 +73,12 @@ int main(int argc, const char** argv)
             abstractVirtualMachine.avmOptimiseFunction(i);
         }
     }
-    for (auto* i: abstractVirtualMachine.compilationUnit) {
-        printf("DECL FUNC %s\n", i->name.c_str());
-        for (auto symbol : i->incomingSymbols)
-        {
-            printf("PARAM %s: %s\n",symbol->identifier.c_str(), symbol->type->typeAsString().c_str());
-        }
-        for (auto *x: i->basicBlocksInFunction) {
-            printf("LABEL: %s\n", x->label.c_str());
-            printf("%s", x->print().c_str());
-        }
-    }
     CodeGenerator codeGenerator(abstractVirtualMachine, argv[3]);
     codeGenerator.startFinalTranslation();
-
+    printf(ANSI_COLOR_GREEN);
+    printf("Compilation of %s was successful! Result is stored in %s", argv[1], argv[3]);
+    printf(ANSI_COLOR_RESET);
+    printf("\n");
 
     return 0;
 }
