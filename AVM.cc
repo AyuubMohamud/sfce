@@ -424,9 +424,9 @@ bool isPowerOfTwo(u64 val)
 void AVM::avmOptimiseFunction(AVMFunction* function) {
     for (auto it : function->basicBlocksInFunction)
     {
-        //optMulToShift(it);
-        //optDivToShift(it);
-        //optFoldConstants(it);
+        optMulToShift(it);
+        optDivToShift(it);
+        optFoldConstants(it);
     }
 }
 /*

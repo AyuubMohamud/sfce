@@ -28,11 +28,15 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
         case A_CALL:
         {
             i64 pos = scope->findRegularSymbol(node->left->identifier);
-            if (pos == -1)
+            if (pos == -1) {
+                print_error("Function does not exist");
                 return true;
+            }
             auto* funcSym = parserState.globalSymbolTable.at(pos);
-            if (funcSym->type->isPtr() || funcSym->type->isNumVar())
+            if (funcSym->type->isPtr() || funcSym->type->isNumVar()) {
+                print_error("Attempted to call identifier which does not represent a function");
                 return true;
+            }
 
             std::vector<CType*> arguments = genArgs(parserState, node->right);
             auto* calleePrototype = dynamic_cast<FunctionPrototype*>(funcSym->type->declaratorPartList.at(1));
@@ -278,7 +282,22 @@ CType* SemanticAnalyser::evalType(CParse& parserState, ASTNode *expr) {
                 printf("Undeclared variable used in file!\n");
                 return nullptr;
             }
-            return parserState.globalSymbolTable[pos]->type;
+            auto* ctype = parserState.globalSymbolTable[pos]->type;
+            //ctype->declaratorPartList.erase(ctype->declaratorPartList.begin()+1);
+            auto* copyType = new CType;
+            if (ctype->declaratorPartList.size() > 1)
+            {
+
+                copyType->typeSpecifier = ctype->typeSpecifier;
+                for (auto x : ctype->declaratorPartList)
+                {
+                    if (x->getDPT() != FUNC)
+                    {
+                        copyType->declaratorPartList.push_back(x);
+                    }
+                }
+            }
+            return copyType;
         }
     }
     return nullptr;

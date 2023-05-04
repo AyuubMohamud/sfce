@@ -1499,8 +1499,11 @@ bool CType::isEqual(CType *otherType, bool ptrOrNum) {
 
     if (token.token == token2.token && ptrOrNum)
         return true;
-    if (token.token != token2.token && ptrOrNum) {
+    if ((token.token != token2.token) && !((token.token == VOID) || (token2.token == VOID)) && (ptrOrNum)) {
         return true;
+    } else if ((token.token != token2.token) && ((token.token == VOID)||(token2.token)) && ptrOrNum)
+    {
+        return false;
     }
 
 
@@ -1572,8 +1575,11 @@ CType *CType::refType() {
 }
 
 void CType::copy(CType* x) {
-    x->typeSpecifier = typeSpecifier;
-    for (auto* i : declaratorPartList)
+    for (const auto& i : x->typeSpecifier)
+    {
+        typeSpecifier.push_back(i);
+    }
+    for (auto* i : x->declaratorPartList)
     {
         switch (i->getDPT()) {
             case PTR: {
@@ -1587,7 +1593,7 @@ void CType::copy(CType* x) {
                 {
                     pointer->setVolatile();
                 }
-                x->declaratorPartList.push_back(pointer);
+                declaratorPartList.push_back(pointer);
                 break;
             }
             case FUNC: {
@@ -1601,7 +1607,7 @@ void CType::copy(CType* x) {
                 }
                 funcProto2->types = funcProto.types;
                 funcProto2->doNotDeleteScope = true;
-                x->declaratorPartList.push_back(funcProto2);
+                declaratorPartList.push_back(funcProto2);
                 break;
             }
             case ARR: {
@@ -1611,7 +1617,7 @@ void CType::copy(CType* x) {
                 Identifier identifier = *(dynamic_cast<Identifier*>(i));
                 auto* newIdentifier =  new Identifier;
                 newIdentifier->identifier_name = identifier.identifier_name;
-                x->declaratorPartList.push_back(newIdentifier);
+                declaratorPartList.push_back(newIdentifier);
                 break;
             }
         }
