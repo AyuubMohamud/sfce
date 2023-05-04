@@ -373,6 +373,11 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 auto findOpcode = AVMtoARMv8.find(it->opcode);
                 if (findOpcode->second == "NULL")
                 {
+                    /*
+                     * ARMv8 has no native instruction for modulo, hence we use a divison, multiplication and subtraction to replace it as:
+                     * a%b is the same as
+                     * a - (a // b)*b where // represents integer division
+                     * */
                     auto arithmeticInstruction = dynamic_cast<ArithmeticInstruction*>(it);
                     if (arithmeticInstruction->opcode != AVMOpcode::MOD)
                         break;
