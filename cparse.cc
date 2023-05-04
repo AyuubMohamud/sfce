@@ -620,6 +620,10 @@ ASTNode* CParse::jumpStatement() {
     }
     auto* node = expression();
     if (node == nullptr) return nullptr;
+    if (tokens->at(cursor).token != SEMICOLON)
+    {
+        return nullptr;
+    }
     auto* rootNode = new ASTNode;
     ASTNode::fillNode(rootNode, node, nullptr, true, A_RET, "");
     return rootNode;

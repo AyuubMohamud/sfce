@@ -84,7 +84,10 @@ LexerResult* Lexer::lexer()
             case '\t':
                 break;
             case '/':
-                backslash();
+                if (backslash()==SBCCCode::GeneralError) {
+                    tokenisedInput->returnCode = SBCCCode::GeneralError;
+                    return tokenisedInput;
+                }
                 break;
             case '"':
                 stringLiterals();
@@ -102,7 +105,10 @@ LexerResult* Lexer::lexer()
                 }
                 else {
                     file.unget();
-                    numberLiterals();
+                    if (numberLiterals()==SBCCCode::GeneralError) {
+                        tokenisedInput->returnCode = SBCCCode::GeneralError;
+                        return tokenisedInput;
+                    }
                 }
                 break;
             case '?':
@@ -115,7 +121,10 @@ LexerResult* Lexer::lexer()
                 if (std::isdigit(c))
                 {
                     file.unget();
-                    numberLiterals();
+                    if (numberLiterals()==SBCCCode::GeneralError) {
+                        tokenisedInput->returnCode = SBCCCode::GeneralError;
+                        return tokenisedInput;
+                    }
                 }
                 else if (std::isalpha(c))
                 {

@@ -50,7 +50,7 @@ int main(int argc, const char** argv)
     }
     Lexer lexer(argv[1]);
     LexerResult* result = lexer.lexer();
-    if (result->returnCode == SBCCCode::FileNotPresent||result->returnCode==SBCCCode::GeneralError)
+    if ((result->returnCode == SBCCCode::FileNotPresent)||(result->returnCode==SBCCCode::GeneralError))
     {
         return 1;
     }

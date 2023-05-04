@@ -414,7 +414,7 @@ std::vector<AVMBasicBlock*> AVM::newBasicBlockHandler(ASTNode *node, ASTNode *ne
 
 bool isPowerOfTwo(u64 val)
 {
-    return std::popcount(val) == 1;
+    return std::__popcount(val) == 1;
 }
 /*
  * void avmOptimiseFunction
