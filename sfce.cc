@@ -11,18 +11,18 @@
 
 void help()
 {
-    printf(ANSI_COLOR_BLUE "Usage: scfe [filenames] [target_options] -o [output filename]\n" ANSI_COLOR_RESET);
+    printf(ANSI_COLOR_BLUE "Usage: sfce [filenames] [target_options] -o [output filename]\n" ANSI_COLOR_RESET);
 }
 
 void version()
 {
-    printf("SCFE 0.1: Built by %s\n", COMPILER);
+    printf("SFCE 0.1: Built by %s\n", COMPILER);
 }
 int main(int argc, const char** argv)
 {
     if (argc < 4)
     {
-        print_error("SCFE called with no arguments!");
+        print_error("SFCE called with no arguments!");
         help();
         return 1;
     }

@@ -373,7 +373,33 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 auto findOpcode = AVMtoARMv8.find(it->opcode);
                 if (findOpcode->second == "NULL")
                 {
-                    auto arithmeticInstruction = dynamic_cast<type>(expression)
+                    auto arithmeticInstruction = dynamic_cast<ArithmeticInstruction*>(it);
+                    if (arithmeticInstruction->opcode != AVMOpcode::MOD)
+                        break;
+                    std::string temp;
+                    temp.append("\tudiv x12, ");
+                    temp.append(regToString(findVariable(arithmeticInstruction->src1)));
+                    temp.append(", ");
+                    temp.append(regToString(findVariable(arithmeticInstruction->src2)));
+                    temp.append("\n");
+                    assemblyFile << temp;
+                    temp.clear();
+                    freeRegs();
+                    temp.append("\tmul x12, x12, ");
+                    temp.append(regToString(findVariable(arithmeticInstruction->src2)));
+                    temp.append("\n");
+                    temp.append("\n");
+                    assemblyFile << temp;
+                    temp.clear();
+                    freeRegs();
+                    temp.append("\tsub ");
+                    temp.append(regToString(allocRegister(arithmeticInstruction->dest)));
+                    temp.append(", ");
+                    temp.append(regToString(findVariable(arithmeticInstruction->src1)));
+                    temp.append(", x12\n");
+                    assemblyFile << temp;
+                    saveVariable(arithmeticInstruction->dest);
+                    freeRegs();
                     break;
                 }
                 auto arithmeticInstruction = dynamic_cast<ArithmeticInstruction*>(it);

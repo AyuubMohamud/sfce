@@ -1512,6 +1512,9 @@ bool CType::isEqual(CType *otherType, bool ptrOrNum) {
     bool equal = true;
     int x = otherType->declaratorPartList.at(0)->getDPT() == D_IDENTIFIER ? 1 : 0;
     int y = declaratorPartList.at(0)->getDPT() == D_IDENTIFIER ? 1 : 0;
+    if ((otherType->declaratorPartList.size()-x) != (declaratorPartList.size())-y) {
+        return false;
+    }
     while (equal && (y < declaratorPartList.size()) && (x < otherType->declaratorPartList.size()))
     {
         equal = (declaratorPartList.at(y)->getDPT() == otherType->declaratorPartList.at(x)->getDPT());

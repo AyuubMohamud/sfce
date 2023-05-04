@@ -2,7 +2,7 @@
 #include <sfce.hh>
 #include <lexer.hh>
 #include <memory>
-#include <graph.hh>
+
 struct ScopeAST;
 enum ASTop {
     A_ADD,
@@ -641,7 +641,6 @@ public:
     std::vector<Symbol*> variablesInFunction;
     std::vector<AVMInstruction*> poolOfInstructions;
     std::string name;
-    AdjacencyMatrix* adjacencyMatrix = nullptr;
     FunctionPrototype* prototype = nullptr;
 private:
 
@@ -697,6 +696,7 @@ public:
         globalCounter++;
         return tmp;
     }
+
     void startBasicBlockConversion(ASTNode *node);
     std::vector<AVMBasicBlock *> newBasicBlockHandler(ASTNode *node, ASTNode *nextBasicBlock, bool nested);
 

@@ -36,19 +36,24 @@ bool SemanticAnalyser::analyseTree(CParse& parserState, ASTNode* node)
 
             std::vector<CType*> arguments = genArgs(parserState, node->right);
             auto* calleePrototype = dynamic_cast<FunctionPrototype*>(funcSym->type->declaratorPartList.at(1));
-            if (arguments.size() != calleePrototype->types.size())
+            if (arguments.size() != calleePrototype->types.size()) {
+                print_error("Function call does not match function prototype: not the same amount of arguments");
                 return true;
+            }
             bool error = false;
             for (auto i = 0; i < arguments.size(); i++)
             {
                 auto* symbol1 = arguments.at(i);
                 auto* symbol2 = calleePrototype->types.at(i);
                 bool sym2isPtr = symbol2->type->isPtr();
-                if (symbol1 == nullptr)
+                if (symbol1 == nullptr) {
                     return true;
+                }
                 bool ok = symbol1->isEqual(symbol2->type, !(symbol1->isPtr()||symbol2->type->isPtr()));
-                if (!ok)
+                if (!ok) {
+                    print_error("Argument type mismatch: Type of argument does not match function prototype");
                     return true;
+                }
             }
             return false;
         }
