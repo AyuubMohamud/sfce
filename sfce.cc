@@ -68,11 +68,13 @@ int main(int argc, const char** argv)
     {
         abstractVirtualMachine.AVMByteCodeDriver(i);
     }
+
     if (optimise) {
         for (auto *i: abstractVirtualMachine.compilationUnit) {
             abstractVirtualMachine.avmOptimiseFunction(i);
         }
     }
+
     CodeGenerator codeGenerator(abstractVirtualMachine, argv[3]);
     codeGenerator.startFinalTranslation();
     printf(ANSI_COLOR_GREEN);
