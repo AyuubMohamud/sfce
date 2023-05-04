@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(sfce VERSION 0.1)
-add_executable(sfce lexer.cc sfce.cc sfce.h.in include/errorHandler.hh cparse.cc include/cparse.hh errorHandler.cc semanticChecker.cc include/graph.hh AVM.cc util.cc codeGen.cc include/codeGen.hh)
+add_executable(sfce lexer.cc sfce.cc sfce.h.in include/errorHandler.hh cparse.cc include/cparse.hh errorHandler.cc semanticChecker.cc AVM.cc util.cc codeGen.cc include/codeGen.hh)
 configure_file(sfce.h.in sfce.h)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
