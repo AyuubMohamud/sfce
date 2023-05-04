@@ -237,13 +237,13 @@ bool CParse::parse()
         if (declarationSpecifiers(type))
         {
             delete type;
-            delete currentScope;
+            //delete currentScope;
             return false;
         }
 
         if (!initDeclaratorList(type, true)) {
-            print_error("Failure whilst parsing declarator!");
-            delete currentScope;
+            print_error(tokens->at(cursor).lineNumber, "Failure whilst parsing declarator");
+            //delete currentScope;
             delete type;
             return false;
         }
@@ -261,7 +261,7 @@ bool CParse::parse()
             }
             else {
                 print_error(tokens->at(cursor).lineNumber, "Expected semicolon after declaration");
-                delete currentScope;
+                //delete currentScope;
                 delete type;
                 return false;
             }

@@ -474,7 +474,7 @@ void AVM::optMulToShift(AVMBasicBlock *basicBlock) {
         {
             multiplicandIsConstant = true;
             std::string tmp;
-            tmp.append(it->src2);
+            tmp.append(it->src1);
             tmp.erase(0, 1);
             multiplicandValue = std::stoull(tmp);
         }

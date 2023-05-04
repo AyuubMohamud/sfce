@@ -319,10 +319,12 @@ SBCCCode Lexer::compoundExpressionHandler()
             {
                 addToken(MODULO, "%");
             }
+            break;
         }
         case '~':
         {
             addToken(BITWISENOT, "~");
+            break;
         }
         case '^':
         {
@@ -335,6 +337,7 @@ SBCCCode Lexer::compoundExpressionHandler()
             {
                 addToken(BITWISEXOR, "^");
             }
+            break;
         }
 
     }

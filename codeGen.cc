@@ -373,7 +373,8 @@ void CodeGenerator::convertBasicBlockToASM(AVMBasicBlock *basicBlock) {
                 auto findOpcode = AVMtoARMv8.find(it->opcode);
                 if (findOpcode->second == "NULL")
                 {
-                    //complexOpHandler(it);
+                    auto arithmeticInstruction = dynamic_cast<type>(expression)
+                    break;
                 }
                 auto arithmeticInstruction = dynamic_cast<ArithmeticInstruction*>(it);
                 std::string temp{};
